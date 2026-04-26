@@ -63,8 +63,8 @@ st.markdown("""
 
 html, body, [class*="css"] {
     font-family: 'Syne', sans-serif;
-    background: #070b14;
-    color: #e2e8f0;
+    background: #f6f9fc;
+    color: #0f1724;
 }
 #MainMenu, footer, header { visibility: hidden; }
 .stApp {
