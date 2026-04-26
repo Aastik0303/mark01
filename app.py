@@ -11,9 +11,7 @@ import streamlit as st
 import os, sys, json, tempfile, base64, re
 from pathlib import Path
 
-# ── Page config ───────────────────────────────────────────────────────────────
-```python
-import streamlit as st
+# ── Page config ─────────────────────────
 
 st.set_page_config(
     page_title="NeuralRAG · Multi-Agent AI",
