@@ -68,22 +68,31 @@ except ImportError:
 
 
 # ── GOOGLE GEMINI CLIENT ──────────────────────────────────────────────────────
+import streamlit as st
+import google.generativeai as genai
 
-GEMINI_MODEL   = ""
-_api_key_store = ""
-
-
-def set_api_key(key: str = "", model: str = ""):
+def set_api_key(key: str = None, model: str = None):
     global GEMINI_MODEL, _api_key_store
-    if not key.strip():
-        raise ValueError("GEMINI_API_KEY is empty — check your Streamlit secrets.")
-    if not model.strip():
-        raise ValueError("GEMINI_MODEL is empty — check your Streamlit secrets.")
+    
+    # 1. Fallback to Streamlit secrets if no arguments are provided
+    if not key and "GEMINI_API_KEY" in st.secrets:
+        key = st.secrets["GEMINI_API_KEY"]
+        
+    if not model and "GEMINI_MODEL" in st.secrets:
+        model = st.secrets["GEMINI_MODEL"]
+    
+    # 2. Validation
+    if not key or not key.strip():
+        raise ValueError("GEMINI_API_KEY is not set. Please add it to your Streamlit secrets.")
+        
+    if not model or not model.strip():
+        # You can also set a sensible default here if you prefer
+        model = "gemini-2.5-flash" 
+        
+    # 3. Assignment
     _api_key_store = key.strip()
-    GEMINI_MODEL   = model.strip()
+    GEMINI_MODEL = model.strip()
     genai.configure(api_key=_api_key_store)
-
-
 def llm_call(messages: List[Dict], temperature: float = 0.1) -> str:
     """Send messages to Gemini. Auto-retries 3x on rate limit."""
     import time
