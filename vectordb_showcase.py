@@ -1,8 +1,13 @@
-### Updated vectordb_showcase.py
+"""
+vectordb_showcase.py — Vector DB Showcase UI Component
+Drop-in Streamlit panel — call render_vectordb_showcase(data) from your main app.
 
-```python
-# vectordb_showcase.py — Vector DB Showcase UI Component
-# Drop-in Streamlit panel — call render_vectordb_showcase(data) from your main app.
+Usage in app.py:
+    from vectordb_showcase import render_vectordb_showcase
+    # After RAG query:
+    if result.get("vstore_data"):
+        render_vectordb_showcase(result["vstore_data"])
+"""
 
 import streamlit as st
 import math
@@ -17,111 +22,249 @@ def _inject_css():
     _CSS_INJECTED = True
     st.markdown("""
 <style>
-/* --- Vector DB Showcase: clearer layout & spacing --- */
+/* ── Vector DB Showcase ──────────────────────────────────────────── */
 .vdb-panel {
-  background: #ffffff;
-  border: 1px solid rgba(30,45,74,0.06);
-  border-radius: 12px;
-  padding: 1rem 1.2rem;
-  margin-top: 1rem;
-  font-family: 'Space Mono', monospace;
-  color: #0f1724;
+    background: #060c1a;
+    border: 1px solid #1a2d4a;
+    border-radius: 14px;
+    padding: 1.2rem 1.4rem;
+    margin-top: 1rem;
+    font-family: 'Space Mono', monospace;
+}
+.vdb-title {
+    font-size: 0.7rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: #4ade80;
+    margin-bottom: 0.8rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+.vdb-stat-row {
+    display: flex;
+    gap: 0.6rem;
+    flex-wrap: wrap;
+    margin-bottom: 1rem;
+}
+.vdb-stat {
+    background: #0a1628;
+    border: 1px solid #1e3a5f;
+    border-radius: 8px;
+    padding: 0.45rem 0.9rem;
+    min-width: 100px;
+    flex: 1;
+}
+.vdb-stat-val {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: #7c6df2;
+    line-height: 1.2;
+}
+.vdb-stat-label {
+    font-size: 0.58rem;
+    color: #475569;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    margin-top: 0.1rem;
 }
 
-/* Title / meta */
-.vdb-title { font-size:0.72rem; color:#2563eb; letter-spacing:0.14em; text-transform:uppercase; margin-bottom:0.6rem; display:flex; align-items:center; gap:0.5rem; }
-.vdb-stat-row { display:flex; gap:0.75rem; flex-wrap:wrap; margin-bottom:0.9rem; }
-.vdb-stat { background:#f8fbff; border:1px solid rgba(30,45,74,0.04); border-radius:10px; padding:0.5rem 0.9rem; min-width:120px; flex:1 1 120px; }
-.vdb-stat-val { font-size:1.05rem; font-weight:700; color:#0b1220; }
-.vdb-stat-label { font-size:0.62rem; color:#6b7280; margin-top:0.15rem; text-transform:uppercase; letter-spacing:0.08em; }
-
-/* Chunk grid: larger cards, consistent gutters, visible scroll */
+/* ── Chunk cards ── */
 .chunk-grid {
-  display:grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 0.75rem;
-  max-height: 420px;
-  overflow-y: auto;
-  padding-right: 8px;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 0.5rem;
+    max-height: 320px;
+    overflow-y: auto;
+    padding-right: 4px;
 }
-.chunk-grid::-webkit-scrollbar { width:8px; }
-.chunk-grid::-webkit-scrollbar-thumb { background: rgba(59,91,219,0.12); border-radius:8px; }
-
-/* Chunk card: more breathing room, readable preview, consistent truncation */
 .chunk-card {
-  background:#ffffff;
-  border:1px solid rgba(30,45,74,0.04);
-  border-radius:12px;
-  padding:0.9rem;
-  cursor:default;
-  transition: box-shadow 220ms ease, border-color 220ms ease, transform 180ms ease;
-  position:relative;
-  min-height:110px;
-  display:flex;
-  flex-direction:column;
-  gap:0.45rem;
+    background: #0a0f1e;
+    border: 1px solid #1e2d4a;
+    border-radius: 8px;
+    padding: 0.55rem 0.75rem;
+    cursor: default;
+    transition: border-color 0.2s;
+    position: relative;
 }
-.chunk-card:hover { box-shadow: 0 10px 30px rgba(15,23,36,0.06); transform: translateY(-4px); border-color: rgba(59,91,219,0.12); }
-.chunk-card.highlighted { border-color: rgba(124,109,242,0.22); box-shadow: 0 12px 36px rgba(124,109,242,0.08); background: linear-gradient(180deg,#fbfbff,#ffffff); }
-
-/* Meta lines */
-.chunk-idx { font-size:0.62rem; color:#6b7280; position:absolute; top:0.6rem; right:0.8rem; }
-.chunk-hash { font-size:0.72rem; color:#3b5bdb; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:70%; }
-.chunk-src { font-size:0.72rem; color:#475569; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:100%; }
+.chunk-card:hover { border-color: #3b5bdb; }
+.chunk-card.highlighted {
+    border-color: #7c6df2 !important;
+    background: #0d1526 !important;
+    box-shadow: 0 0 0 1px #7c6df2, 0 4px 16px rgba(124,109,242,0.15);
+}
+.chunk-idx {
+    font-size: 0.58rem;
+    color: #374151;
+    position: absolute;
+    top: 0.4rem;
+    right: 0.5rem;
+}
+.chunk-hash {
+    font-size: 0.6rem;
+    color: #3b5bdb;
+    margin-bottom: 0.2rem;
+}
+.chunk-src {
+    font-size: 0.58rem;
+    color: #475569;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 200px;
+    margin-bottom: 0.3rem;
+}
 .chunk-preview {
-  font-size:0.9rem;
-  color:#374151;
-  line-height:1.45;
-  display:-webkit-box;
-  -webkit-line-clamp:4;
-  -webkit-box-orient:vertical;
-  overflow:hidden;
-  margin-top:0.15rem;
+    font-size: 0.65rem;
+    color: #94a3b8;
+    line-height: 1.4;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
 }
-.chunk-chars { font-size:0.68rem; color:#6b7280; margin-top:auto; }
+.chunk-chars {
+    font-size: 0.58rem;
+    color: #374151;
+    margin-top: 0.3rem;
+}
 
-/* Similarity results: clear rank, score, and preview alignment */
-.sim-section { margin-top:1rem; padding-top:0.8rem; border-top:1px solid rgba(30,45,74,0.04); }
-.sim-title { font-size:0.68rem; color:#b45309; text-transform:uppercase; letter-spacing:0.12em; margin-bottom:0.6rem; }
-.sim-query { font-size:0.85rem; color:#0b1220; background:#f8fbff; border:1px solid rgba(30,45,74,0.04); border-radius:8px; padding:0.45rem 0.6rem; margin-bottom:0.7rem; }
-
-/* Each result is a horizontal card with a subtle left fill indicating similarity */
+/* ── Similarity results ── */
+.sim-section {
+    margin-top: 1rem;
+    padding-top: 0.8rem;
+    border-top: 1px solid #1e2d4a;
+}
+.sim-title {
+    font-size: 0.62rem;
+    color: #f59e0b;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    margin-bottom: 0.6rem;
+}
+.sim-query {
+    font-size: 0.7rem;
+    color: #c7d2fe;
+    background: #0a1628;
+    border: 1px solid #1e3a5f;
+    border-radius: 6px;
+    padding: 0.3rem 0.7rem;
+    margin-bottom: 0.7rem;
+    word-break: break-word;
+}
 .sim-result {
-  display:flex; gap:0.8rem; align-items:flex-start; padding:0.6rem; background:#ffffff;
-  border:1px solid rgba(30,45,74,0.04); border-radius:10px; position:relative; overflow:hidden;
+    display: flex;
+    align-items: flex-start;
+    gap: 0.7rem;
+    margin-bottom: 0.6rem;
+    padding: 0.5rem 0.7rem;
+    background: #0a0f1e;
+    border: 1px solid #1e2d4a;
+    border-radius: 8px;
+    position: relative;
+    overflow: hidden;
 }
+/* Similarity fill bar */
 .sim-result::before {
-  content:''; position:absolute; left:0; top:0; bottom:0; width: var(--sim-pct); background: linear-gradient(90deg, rgba(59,91,219,0.06), transparent);
-  pointer-events:none;
+    content: '';
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: var(--sim-pct);
+    background: linear-gradient(90deg, rgba(124,109,242,0.08), transparent);
+    pointer-events: none;
 }
-.sim-rank { font-size:0.82rem; font-weight:700; color:#3b5bdb; min-width:36px; text-align:center; }
-.sim-body { flex:1; min-width:0; }
-.sim-score-row { display:flex; gap:0.6rem; align-items:center; margin-bottom:0.25rem; flex-wrap:wrap; }
-.sim-pct { font-size:0.82rem; font-weight:700; color:#059669; }
-.sim-chunk-id { font-size:0.72rem; color:#3b5bdb; }
-.sim-src-pill { font-size:0.68rem; color:#475569; background:#f1f5f9; border-radius:6px; padding:0.12rem 0.45rem; }
-
-/* Preview text */
-.sim-preview { font-size:0.9rem; color:#374151; line-height:1.45; }
-
-/* Embedding bars: consistent height and accessible colors */
-.emb-section { margin-top:1rem; padding-top:0.8rem; border-top:1px solid rgba(30,45,74,0.04); }
-.emb-title { font-size:0.68rem; color:#0ea5a4; text-transform:uppercase; letter-spacing:0.12em; margin-bottom:0.6rem; }
-.emb-bar-row { display:flex; align-items:center; gap:0.6rem; margin-bottom:0.45rem; }
-.emb-bar-label { font-size:0.72rem; color:#6b7280; min-width:80px; text-align:right; }
-.emb-bar-wrap { flex:1; height:8px; background:#f1f5f9; border-radius:6px; overflow:hidden; }
-.emb-bar-fill { height:100%; border-radius:6px; background:linear-gradient(90deg,#3b82f6,#7c6df2); transition: width 420ms ease; }
-.emb-bar-val { font-size:0.72rem; color:#0b1220; min-width:40px; text-align:right; }
-
-/* Small screens: stack stats and increase card width */
-@media (max-width:768px) {
-  .vdb-stat-row { flex-direction:column; gap:0.5rem; }
-  .chunk-grid { grid-template-columns: 1fr; max-height: 360px; }
-  .chunk-card { min-height:120px; }
+.sim-rank {
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: #7c6df2;
+    min-width: 18px;
+    text-align: center;
+    padding-top: 0.1rem;
+}
+.sim-body { flex: 1; min-width: 0; }
+.sim-score-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.2rem;
+    flex-wrap: wrap;
+}
+.sim-pct {
+    font-size: 0.7rem;
+    font-weight: 700;
+    color: #4ade80;
+}
+.sim-chunk-id {
+    font-size: 0.58rem;
+    color: #3b5bdb;
+}
+.sim-src-pill {
+    font-size: 0.55rem;
+    color: #475569;
+    background: #0d1526;
+    border: 1px solid #1e2d4a;
+    border-radius: 4px;
+    padding: 0.05rem 0.3rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 140px;
+}
+.sim-preview {
+    font-size: 0.63rem;
+    color: #94a3b8;
+    line-height: 1.4;
 }
 
-/* Smooth transitions */
-.vdb-panel, .chunk-card, .sim-result, .emb-bar-fill { transition: all 220ms cubic-bezier(.2,.9,.2,1); }
+/* ── Embedding visualizer ── */
+.emb-section {
+    margin-top: 1rem;
+    padding-top: 0.8rem;
+    border-top: 1px solid #1e2d4a;
+}
+.emb-title {
+    font-size: 0.62rem;
+    color: #06b6d4;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    margin-bottom: 0.6rem;
+}
+.emb-bar-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.35rem;
+}
+.emb-bar-label {
+    font-size: 0.6rem;
+    color: #475569;
+    min-width: 60px;
+    text-align: right;
+}
+.emb-bar-wrap {
+    flex: 1;
+    height: 6px;
+    background: #0a1628;
+    border-radius: 3px;
+    overflow: hidden;
+}
+.emb-bar-fill {
+    height: 100%;
+    border-radius: 3px;
+    background: linear-gradient(90deg, #3b5bdb, #7c6df2);
+    transition: width 0.5s ease;
+}
+.emb-bar-val {
+    font-size: 0.6rem;
+    color: #7c6df2;
+    min-width: 32px;
+    text-align: right;
+}
+
+/* ── scrollbar ── */
+.chunk-grid::-webkit-scrollbar { width: 3px; }
+.chunk-grid::-webkit-scrollbar-track { background: #0a0f1e; }
+.chunk-grid::-webkit-scrollbar-thumb { background: #1e3a5f; border-radius: 2px; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -198,7 +341,7 @@ def render_vectordb_showcase(data: dict, title: str = "Vector DB Showcase"):
       <div class="vdb-stat-label">Est. tokens</div>
     </div>
   </div>
-  <div style="font-size:0.6rem;color:#6b7280;margin-bottom:0.8rem">
+  <div style="font-size:0.6rem;color:#374151;margin-bottom:0.8rem">
     Model: {emb_model} · FAISS IndexFlatL2
   </div>
 """, unsafe_allow_html=True)
@@ -214,7 +357,7 @@ def render_vectordb_showcase(data: dict, title: str = "Vector DB Showcase"):
             if is_hit:
                 for r in last_results:
                     if r["chunk_id"] == ch["hash"]:
-                        rank_label = f'<span style="position:absolute;top:0.6rem;left:0.8rem;font-size:0.72rem;color:#3b5bdb;font-weight:700">#{r["rank"]}</span>'
+                        rank_label = f'<span style="position:absolute;top:0.4rem;left:0.5rem;font-size:0.55rem;color:#7c6df2">#{r["rank"]}</span>'
                         break
             chunk_cards += f"""
 <div class="chunk-card {hl_cls}">
@@ -227,8 +370,8 @@ def render_vectordb_showcase(data: dict, title: str = "Vector DB Showcase"):
 </div>"""
 
         st.markdown(f"""
-  <div style="font-size:0.62rem;color:#6b7280;margin-bottom:0.4rem;text-transform:uppercase;letter-spacing:0.1em">
-    All Chunks {f'· <span style="color:#3b5bdb">{len(hit_ids)} retrieved</span>' if hit_ids else ''}
+  <div style="font-size:0.62rem;color:#475569;margin-bottom:0.4rem;text-transform:uppercase;letter-spacing:0.1em">
+    All Chunks {f'· <span style="color:#7c6df2">{len(hit_ids)} retrieved</span>' if hit_ids else ''}
   </div>
   <div class="chunk-grid">{chunk_cards}</div>
 """, unsafe_allow_html=True)
@@ -322,13 +465,12 @@ def render_routing_log(log: list):
         cc     = "#4ade80" if conf >= 0.8 else "#f59e0b" if conf >= 0.5 else "#ef4444"
         rows_html += f"""
 <div style="display:flex;align-items:center;gap:0.6rem;margin-bottom:0.4rem;
-  padding:0.4rem 0.6rem;background:#ffffff;border:1px solid rgba(30,45,74,0.04);border-radius:6px;
+  padding:0.4rem 0.6rem;background:#0a0f1e;border:1px solid #1e2d4a;border-radius:6px;
   font-family:'Space Mono',monospace;font-size:0.62rem;flex-wrap:wrap">
   <span style="color:#475569;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{msg}</span>
-  <span style="background:#f1f5f9;border:1px solid rgba(30,45,74,0.04);border-radius:4px;padding:0.05rem 0.4rem;color:#2563eb">→ {agent}</span>
+  <span style="background:#0d1526;border:1px solid #1e3a5f;border-radius:4px;padding:0.05rem 0.4rem;color:#c7d2fe">→ {agent}</span>
   <span style="color:{mc}">{method}</span>
   <span style="color:{cc}">{int(conf*100)}%</span>
 </div>"""
 
     st.markdown(rows_html + "</div>", unsafe_allow_html=True)
-```
