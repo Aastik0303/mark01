@@ -19,265 +19,135 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-# Force sidebar permanently open — hide the collapse button
 st.markdown("""
 <style>
-/* Hide the collapse/toggle button so sidebar can't be closed */
-[data-testid="stSidebarCollapseButton"] { display: none !important; }
-[data-testid="stSidebarCollapsedControl"] { display: none !important; }
+/* Sidebar pinned open */
+[data-testid="stSidebarCollapseButton"],
+[data-testid="stSidebarCollapsedControl"],
 button[kind="header"] { display: none !important; }
 
-/* Keep sidebar always visible and fixed width */
 [data-testid="stSidebar"] {
     min-width: 290px !important;
     max-width: 290px !important;
-    transform: none !important;
-    visibility: visible !important;
-    display: flex !important;
+    background: linear-gradient(180deg,#e6f4ff 0%,#f0faff 100%) !important;
+    border-right: 1px solid rgba(59,130,246,0.15) !important;
+    box-shadow: 0 6px 18px rgba(59,130,246,0.08);
 }
-[data-testid="stSidebar"][aria-expanded="false"] {
-    min-width: 290px !important;
-    max-width: 290px !important;
-    transform: none !important;
-    margin-left: 0 !important;
-}
-/* Ensure main content doesn't overlap sidebar */
-.main .block-container {
-    padding-left: 1.5rem !important;
-}
-</style>
-""", unsafe_allow_html=True)
-st.markdown("""
-<style>
-@import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;700;800&display=swap');
 
+/* Global font + background */
 html, body, [class*="css"] {
     font-family: 'Syne', sans-serif;
-    background: #f6f9fc;
+    background: #f8fcff;
     color: #0f1724;
     -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
 }
-
-/* Hide default chrome */
-#MainMenu, footer, header { visibility: hidden; }
-
-/* App background with soft radial gradient */
 .stApp {
-    background: radial-gradient(ellipse at 20% 0%, #eef6ff 0%, #f6f9fc 50%, #f3f7fb 100%);
+    background: radial-gradient(ellipse at 20% 0%, #dbeafe 0%, #f0faff 50%, #f8fcff 100%);
     transition: background 300ms ease;
 }
 
 /* Scrollbar */
 ::-webkit-scrollbar { width: 8px; height: 8px; }
-::-webkit-scrollbar-track { background: #f1f5f9; border-radius: 8px; }
-::-webkit-scrollbar-thumb { background: rgba(59,91,219,0.18); border-radius: 8px; }
-
-/* Responsive tweaks */
-@media (max-width: 768px) {
-    .stTabs [data-baseweb="tab"] { font-size: 0.82rem !important; padding: 0.45rem 0.6rem !important; }
-    .stButton > button { min-height: 48px !important; }
-    .bubble-user, .bubble-agent { max-width: 98% !important; font-size: 0.9rem !important; }
-    .agent-bar-desc { display: none !important; }
-    .nexus-title { font-size: 1.9rem !important; }
-}
-
-/* Sidebar */
-[data-testid="stSidebar"] {
-    background: linear-gradient(180deg,#ffffff 0%,#f8fbff 100%) !important;
-    border-right: 1px solid rgba(30,45,74,0.06) !important;
-    box-shadow: 0 6px 18px rgba(15,23,36,0.04);
-    min-width: 280px !important;
-}
-
-/* Collapse button removed — sidebar is permanently pinned open */
-
-/* Header */
-.nexus-header { text-align: center; padding: 1rem 0 0.8rem; }
-.nexus-title {
-    font-size: 2.2rem; font-weight: 800; letter-spacing: -0.02em; line-height: 1;
-    background: linear-gradient(135deg, #6b8cff 0%, #7c6df2 50%, #3b82f6 100%);
-    -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
-}
-.nexus-sub {
-    font-family: 'Space Mono', monospace; color: #6b7280; font-size: 0.72rem;
-    letter-spacing: 0.12em; text-transform: uppercase; margin-top: 0.3rem;
-}
+::-webkit-scrollbar-thumb { background: rgba(59,130,246,0.25); border-radius: 8px; }
+::-webkit-scrollbar-track { background: #e0f2fe; }
 
 /* Buttons */
 .stButton > button {
-    background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%) !important;
-    color: #0f1724 !important; border: 1px solid rgba(30,58,138,0.06) !important;
-    border-radius: 12px !important; font-family: 'Syne', sans-serif !important;
-    font-weight: 600 !important; text-align: left !important;
-    transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease !important;
-    padding: 0.7rem 1rem !important; width: 100% !important;
-    box-shadow: 0 6px 18px rgba(15,23,36,0.04);
+    background: linear-gradient(180deg, #e6f4ff 0%, #f0faff 100%) !important;
+    color: #0f1724 !important;
+    border: 1px solid rgba(59,130,246,0.25) !important;
+    border-radius: 12px !important;
+    font-weight: 600 !important;
+    padding: 0.7rem 1rem !important;
+    width: 100% !important;
+    box-shadow: 0 6px 18px rgba(59,130,246,0.08);
+    transition: all 200ms ease;
 }
 .stButton > button:hover {
-    border-color: rgba(59,91,219,0.28) !important; color: #071033 !important;
-    box-shadow: 0 10px 30px rgba(59,91,219,0.08) !important;
-    transform: translateY(-2px) !important;
+    border-color: #3b82f6 !important;
+    color: #1e3a8a !important;
+    box-shadow: 0 10px 30px rgba(59,130,246,0.12) !important;
+    transform: translateY(-2px);
 }
 
 /* Chat bubbles */
 .bubble-user {
-    background: linear-gradient(180deg, #ffffff, #f8fbff);
-    border: 1px solid rgba(30,58,138,0.06);
+    background: #e0f2fe;
+    border: 1px solid rgba(59,130,246,0.25);
     border-radius: 20px 20px 8px 20px;
-    padding: 0.85rem 1.2rem; max-width: 78%;
-    color: #0f1724; font-size: 0.95rem; line-height: 1.5;
-    margin: 0.45rem 0 0.45rem auto; word-break: break-word;
-    box-shadow: inset 0 -1px 0 rgba(15,23,36,0.02);
+    padding: 0.9rem 1.2rem;
+    max-width: 78%;
+    color: #0f1724;
+    font-size: 0.95rem;
+    line-height: 1.5;
+    margin: 0.45rem 0 0.45rem auto;
 }
 .bubble-agent {
-    background: linear-gradient(180deg, #ffffff, #f3f7ff);
-    border: 1px solid rgba(30,58,138,0.05);
+    background: #f0faff;
+    border: 1px solid rgba(59,130,246,0.18);
     border-radius: 8px 20px 20px 20px;
-    padding: 0.85rem 1.2rem; max-width: 86%;
-    color: #0b1220; font-size: 0.95rem; line-height: 1.6;
-    margin: 0.45rem 0; word-break: break-word;
-    box-shadow: 0 6px 18px rgba(15,23,36,0.04);
+    padding: 0.9rem 1.2rem;
+    max-width: 86%;
+    color: #0f1724;
+    font-size: 0.95rem;
+    line-height: 1.6;
+    margin: 0.45rem 0;
 }
-.bubble-label {
-    font-family: 'Space Mono', monospace; font-size: 0.66rem;
-    text-transform: uppercase; letter-spacing: 0.12em;
-    margin-bottom: 0.35rem; opacity: 0.8;
-}
-.bubble-user  .bubble-label { color: #2563eb; }
-.bubble-agent .bubble-label { color: #6b8cff; }
 
 /* Inputs */
-.stTextArea textarea {
-    background: #ffffff !important; border: 1px solid rgba(30,58,138,0.06) !important;
-    border-radius: 12px !important; color: #0f1724 !important;
-    font-family: 'Syne', sans-serif !important; font-size: 0.95rem !important;
-    resize: none !important; padding: 0.6rem !important;
-    box-shadow: 0 6px 18px rgba(15,23,36,0.03);
-}
-.stTextArea textarea:focus { border-color: rgba(59,91,219,0.22) !important; box-shadow: 0 8px 24px rgba(59,91,219,0.06) !important; }
+.stTextArea textarea,
 .stTextInput input {
-    background: #ffffff !important; border: 1px solid rgba(30,58,138,0.06) !important;
-    border-radius: 10px !important; color: #0f1724 !important; font-size: 0.95rem !important;
-    padding: 0.45rem 0.6rem !important;
+    background: #ffffff !important;
+    border: 1px solid rgba(59,130,246,0.25) !important;
+    border-radius: 10px !important;
+    color: #0f1724 !important;
+    font-size: 0.95rem !important;
+    padding: 0.6rem !important;
 }
-.stTextInput input:focus { border-color: rgba(59,91,219,0.22) !important; box-shadow: 0 8px 24px rgba(59,91,219,0.06) !important; }
-.stSelectbox > div > div {
-    background: #ffffff !important; border: 1px solid rgba(30,58,138,0.06) !important;
-    border-radius: 10px !important; color: #0f1724 !important;
-}
-
-/* File uploader */
-[data-testid="stFileUploader"] {
-    background: #ffffff; border: 1px dashed rgba(30,58,138,0.06); border-radius: 14px; padding: 1rem;
-    box-shadow: 0 6px 18px rgba(15,23,36,0.03);
+.stTextArea textarea:focus,
+.stTextInput input:focus {
+    border-color: #3b82f6 !important;
+    box-shadow: 0 0 0 2px rgba(59,130,246,0.25) !important;
 }
 
 /* Tabs */
 .stTabs [data-baseweb="tab-list"] {
-    background: #ffffff; border-radius: 12px; padding: 6px; gap: 6px;
-    border: 1px solid rgba(30,45,74,0.04); flex-wrap: nowrap; overflow-x: auto;
+    background: #f0faff;
+    border-radius: 12px;
+    padding: 6px;
+    gap: 6px;
+    border: 1px solid rgba(59,130,246,0.15);
 }
 .stTabs [data-baseweb="tab"] {
-    background: transparent !important; color: #475569 !important;
-    border-radius: 10px !important; font-family: 'Syne', sans-serif !important;
-    font-weight: 600 !important; white-space: nowrap;
+    color: #475569 !important;
+    border-radius: 10px !important;
+    font-weight: 600 !important;
 }
 .stTabs [aria-selected="true"] {
-    background: linear-gradient(135deg, #dbe7ff, #e9e6ff) !important; color: #071033 !important;
-    box-shadow: 0 8px 20px rgba(59,91,219,0.04);
+    background: linear-gradient(135deg, #93c5fd, #bfdbfe) !important;
+    color: #0f1724 !important;
+    box-shadow: 0 8px 20px rgba(59,130,246,0.12);
 }
 
-/* Expander */
-.streamlit-expanderHeader {
-    background: #ffffff !important; border: 1px solid rgba(30,58,138,0.06) !important;
-    border-radius: 10px !important; color: #2563eb !important;
-    font-family: 'Space Mono', monospace !important; font-size: 0.86rem !important;
-}
-
-/* Badges */
-.badge {
-    display: inline-flex; align-items: center; gap: 0.35rem;
-    background: #ffffff; border: 1px solid rgba(30,58,138,0.06); border-radius: 20px;
-    padding: 0.25rem 0.7rem; font-family: 'Space Mono', monospace;
-    font-size: 0.72rem; color: #475569; margin: 0.1rem;
-    box-shadow: 0 6px 14px rgba(15,23,36,0.03);
-}
-.badge.on   { border-color: rgba(16,185,129,0.12); color: #059669; background: #f0fbf6; }
-.badge.off  { border-color: rgba(55,65,81,0.06); color: #6b7280; }
-.badge.info { border-color: rgba(59,130,246,0.12); color: #2563eb; background: #f0f7ff; }
-.badge.warn { border-color: rgba(245,158,11,0.12); color: #b45309; background: #fff7ed; }
-
-hr { border-color: rgba(30,45,74,0.04) !important; }
-[data-testid="metric-container"] {
-    background: #ffffff; border: 1px solid rgba(30,45,74,0.04); border-radius: 12px; padding: 0.6rem;
-    box-shadow: 0 6px 18px rgba(15,23,36,0.03);
-}
-.stSuccess { background: #f0fbf6 !important; border-left: 4px solid #10b981 !important; border-radius: 8px !important; }
-.stError   { background: #fff5f5 !important; border-left: 4px solid #ef4444 !important; border-radius: 8px !important; }
-.stInfo    { background: #f0f7ff !important; border-left: 4px solid #3b82f6 !important; border-radius: 8px !important; }
-.stWarning { background: #fffaf0 !important; border-left: 4px solid #f59e0b !important; border-radius: 8px !important; }
-pre { background: #ffffff !important; border: 1px solid rgba(30,58,138,0.04) !important; border-radius: 12px !important; padding: 0.8rem !important; }
-
-.src-pill {
-    display: inline-block; background: #ffffff; border: 1px solid rgba(30,58,138,0.04);
-    border-radius: 6px; padding: 0.15rem 0.6rem;
-    font-family: 'Space Mono', monospace; font-size: 0.72rem; color: #475569; margin: 0.1rem;
-}
-.ts-pill {
-    display: inline-block; background: #eef4ff; border: 1px solid rgba(59,91,219,0.08);
-    border-radius: 6px; padding: 0.2rem 0.6rem;
-    font-family: 'Space Mono', monospace; font-size: 0.75rem; color: #3b5bdb;
-    margin: 0.15rem; text-decoration: none;
-}
-
-.agent-bar {
-    display: flex; align-items: center; gap: 0.9rem; margin-bottom: 0.9rem;
-    background: #ffffff; border: 1px solid rgba(30,58,138,0.04); border-radius: 12px;
-    padding: 0.8rem 1rem; flex-wrap: wrap; box-shadow: 0 6px 18px rgba(15,23,36,0.03);
-}
-.agent-bar-icon { font-size: 1.4rem; color: #3b5bdb; }
-.agent-bar-name { font-weight: 700; font-size: 0.98rem; color: #0f1724; }
-.agent-bar-desc { font-size: 0.78rem; color: #6b7280; font-family: 'Space Mono', monospace; margin-top: 0.1rem; }
-.delegate-tag {
-    display: inline-block; background: #fff7ed; border: 1px solid rgba(245,158,11,0.12);
-    color: #b45309; border-radius: 6px; padding: 0.06rem 0.45rem;
-    font-family: 'Space Mono', monospace; font-size: 0.68rem; margin-left: 0.4rem;
-}
+/* Cards, badges, info blocks */
 .info-card {
-    padding: 0.9rem; background: #ffffff; border-radius: 12px;
-    border-left: 3px solid #7c6df2; margin-top: 0.5rem; box-shadow: 0 6px 18px rgba(15,23,36,0.03);
+    background: #f0faff;
+    border-left: 3px solid #3b82f6;
+    border-radius: 12px;
+    padding: 0.9rem;
+    box-shadow: 0 6px 18px rgba(59,130,246,0.08);
 }
-.info-card-title { color: #0f1724; font-weight: 600; }
-.info-card-sub   { color: #6b7280; font-size: 0.86rem; margin-top: 0.25rem; }
-
-.conf-pill {
-    display: inline-flex; align-items: center; gap: 0.25rem;
-    font-family: 'Space Mono', monospace; font-size: 0.68rem;
-    border-radius: 6px; padding: 0.06rem 0.4rem;
-    border: 1px solid; margin-left: 0.4rem;
-}
-.conf-high { border-color: #10b981; color: #065f46; background: #f0fbf6; }
-.conf-mid  { border-color: #f59e0b; color: #92400e; background: #fff7ed; }
-.conf-low  { border-color: #ef4444; color: #7f1d1d; background: #fff5f5; }
-
-/* ── Enter-to-send hint ── */
-.input-hint {
-    font-family: 'Space Mono', monospace;
-    font-size: 0.6rem;
-    color: #9ca3af;
-    margin-top: 0.25rem;
-    padding-left: 0.2rem;
-}
-
-.stButton > button,
-.bubble-user, .bubble-agent,
-.stTextArea textarea, .stTextInput input,
-[data-testid="stSidebar"], .agent-bar, .info-card {
-    transition: all 220ms cubic-bezier(.2,.9,.2,1);
+.badge {
+    background: #e0f2fe;
+    border: 1px solid rgba(59,130,246,0.25);
+    border-radius: 20px;
+    padding: 0.25rem 0.7rem;
+    font-size: 0.72rem;
+    color: #1e3a8a;
 }
 </style>
 """, unsafe_allow_html=True)
+
 
 # ── Session state ─────────────────────────────────────────────────────────────
 def _ss(k, v):
