@@ -1,0 +1,52 @@
+# ── NexusRAG · requirements.txt ──────────────────────────────────────────────
+# Python 3.10+ recommended
+
+# ── Core UI ───────────────────────────────────────────────────────────────────
+streamlit>=1.35.0
+
+# ── Google Gemini ─────────────────────────────────────────────────────────────
+google-generativeai>=0.7.0
+
+# ── LangChain stack ───────────────────────────────────────────────────────────
+langchain>=0.2.0
+langchain-community>=0.2.0
+langchain-huggingface>=0.0.3
+langchain-text-splitters>=0.2.0
+langchain-core>=0.2.0
+
+# ── Vector store ──────────────────────────────────────────────────────────────
+faiss-cpu>=1.8.0
+
+# ── Embeddings ────────────────────────────────────────────────────────────────
+sentence-transformers>=3.0.0
+torch>=2.2.0              # CPU-only build is fine for inference
+transformers>=4.40.0
+huggingface-hub>=0.23.0
+
+# ── Document loaders ──────────────────────────────────────────────────────────
+pypdf>=4.2.0              # PDF loading (PyPDFLoader)
+unstructured>=0.14.0      # optional: richer PDF/DOCX parsing
+python-docx>=1.1.0        # DOCX support
+
+# ── Data analysis ─────────────────────────────────────────────────────────────
+pandas>=2.2.0
+numpy>=1.26.0
+openpyxl>=3.1.0           # Excel .xlsx read/write
+xlrd>=2.0.1               # Excel .xls read
+
+# ── Charts ────────────────────────────────────────────────────────────────────
+matplotlib>=3.8.0
+seaborn>=0.13.0
+
+# ── YouTube RAG ───────────────────────────────────────────────────────────────
+youtube-transcript-api>=0.6.2
+yt-dlp>=2024.5.1          # video metadata (title, channel, duration)
+
+# ── Web research ──────────────────────────────────────────────────────────────
+duckduckgo-search>=6.2.0
+requests>=2.32.0
+
+# ── Utilities ─────────────────────────────────────────────────────────────────
+python-dotenv>=1.0.0      # local .env support (not needed on Streamlit Cloud)
+tenacity>=8.3.0           # retry logic helper
+tiktoken>=0.7.0           # token estimation
