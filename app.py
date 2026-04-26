@@ -1,14 +1,10 @@
 """
 NexusRAG — Multi-Agent Intelligence Platform
 Streamlit Frontend · Google Gemini API · LangChain · FAISS
-New features:
-  - Vector DB Showcase panel (chunk grid + similarity scores + routing log)
-  - Improved RAG (hybrid retrieval + contextual compression)
-  - Smarter Orchestrator (regex fast-path + confidence routing)
-  - Code Agent tab with language selector + live execution toggle
-  - Data Agent with AI chart generation
-  - Research Agent with query decomposition
-  - Routing log panel in sidebar
+
+FIXES:
+  - Enter key submits chat (Shift+Enter for new line)
+  - Vector DB showcase always renders as card grid (never plain text list)
 """
 
 import streamlit as st
@@ -43,7 +39,7 @@ html, body, [class*="css"] {
     transition: background 300ms ease;
 }
 
-/* Scrollbar: slightly wider and rounded */
+/* Scrollbar */
 ::-webkit-scrollbar { width: 8px; height: 8px; }
 ::-webkit-scrollbar-track { background: #f1f5f9; border-radius: 8px; }
 ::-webkit-scrollbar-thumb { background: rgba(59,91,219,0.18); border-radius: 8px; }
@@ -57,7 +53,7 @@ html, body, [class*="css"] {
     .nexus-title { font-size: 1.9rem !important; }
 }
 
-/* Sidebar: lighter, subtle border and shadow */
+/* Sidebar */
 [data-testid="stSidebar"] {
     background: linear-gradient(180deg,#ffffff 0%,#f8fbff 100%) !important;
     border-right: 1px solid rgba(30,45,74,0.06) !important;
@@ -65,7 +61,6 @@ html, body, [class*="css"] {
     min-width: 280px !important;
 }
 
-/* Collapse button */
 [data-testid="stSidebarCollapseButton"] button,
 [data-testid="stSidebarCollapsedControl"] button {
     background: #ffffff !important;
@@ -76,7 +71,7 @@ html, body, [class*="css"] {
     box-shadow: 0 6px 14px rgba(59,91,219,0.06);
 }
 
-/* Header / Title */
+/* Header */
 .nexus-header { text-align: center; padding: 1rem 0 0.8rem; }
 .nexus-title {
     font-size: 2.2rem; font-weight: 800; letter-spacing: -0.02em; line-height: 1;
@@ -88,7 +83,7 @@ html, body, [class*="css"] {
     letter-spacing: 0.12em; text-transform: uppercase; margin-top: 0.3rem;
 }
 
-/* Buttons: lighter surface, soft shadow, smooth hover */
+/* Buttons */
 .stButton > button {
     background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%) !important;
     color: #0f1724 !important; border: 1px solid rgba(30,58,138,0.06) !important;
@@ -104,7 +99,7 @@ html, body, [class*="css"] {
     transform: translateY(-2px) !important;
 }
 
-/* Chat bubbles: lighter, more rounded, subtle inner shadow */
+/* Chat bubbles */
 .bubble-user {
     background: linear-gradient(180deg, #ffffff, #f8fbff);
     border: 1px solid rgba(30,58,138,0.06);
@@ -131,7 +126,7 @@ html, body, [class*="css"] {
 .bubble-user  .bubble-label { color: #2563eb; }
 .bubble-agent .bubble-label { color: #6b8cff; }
 
-/* Inputs and selects: lighter surfaces and gentle focus ring */
+/* Inputs */
 .stTextArea textarea {
     background: #ffffff !important; border: 1px solid rgba(30,58,138,0.06) !important;
     border-radius: 12px !important; color: #0f1724 !important;
@@ -157,7 +152,7 @@ html, body, [class*="css"] {
     box-shadow: 0 6px 18px rgba(15,23,36,0.03);
 }
 
-/* Tabs: soft background and pill selection */
+/* Tabs */
 .stTabs [data-baseweb="tab-list"] {
     background: #ffffff; border-radius: 12px; padding: 6px; gap: 6px;
     border: 1px solid rgba(30,45,74,0.04); flex-wrap: nowrap; overflow-x: auto;
@@ -172,14 +167,14 @@ html, body, [class*="css"] {
     box-shadow: 0 8px 20px rgba(59,91,219,0.04);
 }
 
-/* Expander header */
+/* Expander */
 .streamlit-expanderHeader {
     background: #ffffff !important; border: 1px solid rgba(30,58,138,0.06) !important;
     border-radius: 10px !important; color: #2563eb !important;
     font-family: 'Space Mono', monospace !important; font-size: 0.86rem !important;
 }
 
-/* Badges and pills: lighter variants */
+/* Badges */
 .badge {
     display: inline-flex; align-items: center; gap: 0.35rem;
     background: #ffffff; border: 1px solid rgba(30,58,138,0.06); border-radius: 20px;
@@ -192,7 +187,6 @@ html, body, [class*="css"] {
 .badge.info { border-color: rgba(59,130,246,0.12); color: #2563eb; background: #f0f7ff; }
 .badge.warn { border-color: rgba(245,158,11,0.12); color: #b45309; background: #fff7ed; }
 
-/* Metrics, alerts, pre blocks */
 hr { border-color: rgba(30,45,74,0.04) !important; }
 [data-testid="metric-container"] {
     background: #ffffff; border: 1px solid rgba(30,45,74,0.04); border-radius: 12px; padding: 0.6rem;
@@ -204,7 +198,6 @@ hr { border-color: rgba(30,45,74,0.04) !important; }
 .stWarning { background: #fffaf0 !important; border-left: 4px solid #f59e0b !important; border-radius: 8px !important; }
 pre { background: #ffffff !important; border: 1px solid rgba(30,58,138,0.04) !important; border-radius: 12px !important; padding: 0.8rem !important; }
 
-/* Source and tag pills */
 .src-pill {
     display: inline-block; background: #ffffff; border: 1px solid rgba(30,58,138,0.04);
     border-radius: 6px; padding: 0.15rem 0.6rem;
@@ -217,7 +210,6 @@ pre { background: #ffffff !important; border: 1px solid rgba(30,58,138,0.04) !im
     margin: 0.15rem; text-decoration: none;
 }
 
-/* Agent bar and info card */
 .agent-bar {
     display: flex; align-items: center; gap: 0.9rem; margin-bottom: 0.9rem;
     background: #ffffff; border: 1px solid rgba(30,58,138,0.04); border-radius: 12px;
@@ -238,7 +230,6 @@ pre { background: #ffffff !important; border: 1px solid rgba(30,58,138,0.04) !im
 .info-card-title { color: #0f1724; font-weight: 600; }
 .info-card-sub   { color: #6b7280; font-size: 0.86rem; margin-top: 0.25rem; }
 
-/* Routing confidence pill */
 .conf-pill {
     display: inline-flex; align-items: center; gap: 0.25rem;
     font-family: 'Space Mono', monospace; font-size: 0.68rem;
@@ -249,7 +240,15 @@ pre { background: #ffffff !important; border: 1px solid rgba(30,58,138,0.04) !im
 .conf-mid  { border-color: #f59e0b; color: #92400e; background: #fff7ed; }
 .conf-low  { border-color: #ef4444; color: #7f1d1d; background: #fff5f5; }
 
-/* Smooth transitions for many elements */
+/* ── Enter-to-send hint ── */
+.input-hint {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.6rem;
+    color: #9ca3af;
+    margin-top: 0.25rem;
+    padding-left: 0.2rem;
+}
+
 .stButton > button,
 .bubble-user, .bubble-agent,
 .stTextArea textarea, .stTextInput input,
@@ -280,8 +279,9 @@ _ss("data_columns",      [])
 _ss("_boot_error",       "")
 _ss("video_url_saved",   "")
 _ss("video_lang_saved",  "en")
-_ss("last_vstore_data",  None)   # for Vector DB Showcase
-_ss("last_routing",      None)   # for routing badge
+_ss("last_vstore_data",  None)
+_ss("last_routing",      None)
+_ss("_enter_submit",     "")   # ← holds pending Enter-key submission
 
 
 # ── Init agents ───────────────────────────────────────────────────────────────
@@ -347,7 +347,6 @@ def render_message(msg):
     else:
         del_tag = '<span class="delegate-tag">↗ delegated</span>' if msg.get("delegated") else ""
 
-        # Routing confidence badge
         routing    = msg.get("routing") or {}
         conf_badge = ""
         if routing:
@@ -385,10 +384,50 @@ def render_message(msg):
             with st.expander("🔍 Research Queries Used"):
                 for q in msg["queries"]:
                     st.markdown(f"`{q}`")
-        # Vector DB Showcase per message
         if msg.get("vstore_data") and msg["vstore_data"].get("total_chunks", 0) > 0:
             with st.expander("◈ Vector DB Showcase", expanded=False):
                 render_vectordb_showcase(msg["vstore_data"])
+
+
+# ── Enter-to-send JS injection ────────────────────────────────────────────────
+def inject_enter_to_send():
+    """
+    Inject JS so that pressing Enter in the chat textarea triggers the Send button.
+    Shift+Enter inserts a newline as normal.
+    We identify the textarea by placeholder text and the button by its text content.
+    """
+    st.markdown("""
+<script>
+(function() {
+  function attachEnterListener() {
+    // Find all textareas in the page
+    const textareas = window.parent.document.querySelectorAll('textarea');
+    textareas.forEach(function(ta) {
+      if (ta._nexusEnterAttached) return;
+      ta._nexusEnterAttached = true;
+      ta.addEventListener('keydown', function(e) {
+        // Enter without Shift = send
+        if (e.key === 'Enter' && !e.shiftKey) {
+          e.preventDefault();
+          // Find the Send button — it contains the ⬆ symbol or "Send" text
+          const buttons = window.parent.document.querySelectorAll('button');
+          for (let btn of buttons) {
+            if (btn.innerText && (btn.innerText.includes('⬆') || btn.innerText.trim() === 'Send')) {
+              btn.click();
+              break;
+            }
+          }
+        }
+      });
+    });
+  }
+  // Run immediately and re-run on DOM changes (Streamlit re-renders)
+  attachEnterListener();
+  const observer = new MutationObserver(attachEnterListener);
+  observer.observe(window.parent.document.body, { childList: true, subtree: true });
+})();
+</script>
+""", unsafe_allow_html=True)
 
 
 # ════════════════════════════════════════════════════════════
@@ -460,7 +499,6 @@ with st.sidebar:
                 s = st.session_state.orchestrator.chatbot.get_summary()
             st.info(s)
 
-    # ── Routing Log in sidebar ─────────────────────────────────────────────
     st.markdown("---")
     if st.session_state.agents_ready and st.session_state.orchestrator:
         log = st.session_state.orchestrator.get_routing_log()
@@ -469,7 +507,6 @@ with st.sidebar:
                 from vectordb_showcase import render_routing_log
                 render_routing_log(log)
 
-    # ── Vector DB quick stats in sidebar ──────────────────────────────────
     if st.session_state.last_vstore_data:
         vd = st.session_state.last_vstore_data
         st.markdown("---")
@@ -556,7 +593,7 @@ with tab_chat:
     with chat_container:
         if not st.session_state.messages:
             st.markdown("""
-<div class="empty-state">
+<div style="text-align:center;padding:3rem 1rem;color:#9ca3af;font-family:'Space Mono',monospace;font-size:0.78rem">
   ⬡<br><br>
   Start a conversation · Upload documents · Load a YouTube video<br>
   <span style="font-size:0.65rem;color:#374151">Select an agent from the sidebar or use Auto-Route</span>
@@ -565,10 +602,7 @@ with tab_chat:
             for msg in st.session_state.messages:
                 render_message(msg)
 
-    # ── Input area ────────────────────────────────────────────────────────────
-    st.markdown("<div style='height:0.5rem'></div>", unsafe_allow_html=True)
-
-    # YouTube URL ingest inline for video agent
+    # ── YouTube URL ingest inline for video agent ─────────────────────────────
     if active == "video":
         col_url, col_lang, col_btn = st.columns([4, 1, 1])
         with col_url:
@@ -594,34 +628,47 @@ with tab_chat:
                 else:
                     st.warning("Please enter a YouTube URL.")
 
-    # Code agent language selector
+    # ── Code agent language selector ──────────────────────────────────────────
     if active == "code":
         code_lang = st.selectbox(
             "Language",
             ["python","javascript","typescript","java","go","rust","sql","bash","c++","c#","php","kotlin"],
             key="code_lang_sel",
-            label_visibility="visible",
         )
+
+    # ── Input area ────────────────────────────────────────────────────────────
+    st.markdown("<div style='height:0.4rem'></div>", unsafe_allow_html=True)
+
+    placeholder_map = {
+        "chat":     "Ask anything… (Enter to send · Shift+Enter for new line)",
+        "rag":      "Ask about your uploaded documents… (Enter to send)",
+        "video":    "Ask about the loaded video… (Enter to send)",
+        "data":     "Ask about your data… (Enter to send)",
+        "code":     "Describe what code you need… (Enter to send)",
+        "research": "What do you want to research? (Enter to send)",
+        "auto":     "Ask anything — I'll route to the best agent… (Enter to send)",
+    }
 
     col_input, col_send = st.columns([6, 1])
     with col_input:
-        placeholder = {
-            "chat":     "Ask anything…",
-            "rag":      "Ask about your uploaded documents…",
-            "video":    "Ask about the loaded video…",
-            "data":     "Ask about your data (e.g. 'show me top 10 by revenue')…",
-            "code":     "Describe what code you need…",
-            "research": "What do you want to research?",
-            "auto":     "Ask anything — I'll route to the best agent…",
-        }.get(active, "Type your message…")
         user_input = st.text_area(
-            "Message", placeholder=placeholder,
-            height=80, key="chat_input",
+            "Message",
+            placeholder=placeholder_map.get(active, "Type your message… (Enter to send)"),
+            height=80,
+            key="chat_input",
             label_visibility="collapsed",
+        )
+        # Hint below textarea
+        st.markdown(
+            '<div class="input-hint">↵ Enter to send &nbsp;·&nbsp; Shift+↵ for new line</div>',
+            unsafe_allow_html=True,
         )
     with col_send:
         st.markdown("<div style='height:1.2rem'></div>", unsafe_allow_html=True)
         send = st.button("⬆ Send", key="send_btn", use_container_width=True)
+
+    # ── Inject Enter-to-send JS ───────────────────────────────────────────────
+    inject_enter_to_send()
 
     # ── Handle send ───────────────────────────────────────────────────────────
     if send and user_input.strip():
@@ -630,7 +677,6 @@ with tab_chat:
 
         with st.spinner("Thinking…"):
             try:
-                # ── Route based on active agent ──────────────────────────────
                 if active == "auto":
                     result   = orch.route(q, get_context())
                     routing  = result.get("_routing", {})
@@ -755,7 +801,6 @@ with tab_ingest:
                     vd = orch.rag.get_showcase_data()
                     st.session_state.last_vstore_data = vd
                     st.success(msg)
-                    # Show Vector DB right after ingest
                     render_vectordb_showcase(vd, title="Document Vector Store")
                 else:
                     st.error(msg)
@@ -795,8 +840,8 @@ with tab_ingest:
 <div class="info-card">
   <div class="info-card-title">🎬 {info.get('title','Unknown')}</div>
   <div class="info-card-sub">
-    {info.get('channel','?')} · {info.get('duration','?')} · 
-    {info.get('transcript_segments',0)} segments · 
+    {info.get('channel','?')} · {info.get('duration','?')} ·
+    {info.get('transcript_segments',0)} segments ·
     source: {info.get('source_type','?')}
   </div>
 </div>""", unsafe_allow_html=True)
@@ -963,7 +1008,6 @@ with tab_viz:
                 ax.set_ylabel(y_col); ax.set_title(f"Box Plot: {y_col}")
                 show_fig(fig)
 
-        # ── AI Chart Generation ────────────────────────────────────────────
         st.markdown("---")
         st.markdown("**🤖 AI Chart Generator**")
         ai_chart_q = st.text_input(
@@ -990,8 +1034,7 @@ with tab_vdb:
 
     st.markdown("### ◈ Vector DB Showcase")
     st.markdown(
-        "Inspect your indexed chunks, embedding metadata, and retrieval similarity scores in real time.",
-        help="This panel updates automatically after every RAG query.",
+        "Inspect indexed chunks, embedding metadata, and retrieval similarity scores.",
     )
 
     vdb_tab1, vdb_tab2, vdb_tab3 = st.tabs(["📄 Document RAG", "🎬 YouTube RAG", "⟳ Routing Log"])
@@ -1005,10 +1048,10 @@ with tab_vdb:
                 st.info("Documents ingested but no chunks found. Try re-ingesting.")
         else:
             st.markdown("""
-<div class="empty-state">
+<div style="text-align:center;padding:2.5rem 1rem;color:#9ca3af;font-family:'Space Mono',monospace;font-size:0.75rem">
   ◈<br><br>
   Upload documents in <b>Ingest Data → Documents</b><br>
-  then ask a question to see the retrieval in action.
+  then ask a question to see retrieval in action.
 </div>""", unsafe_allow_html=True)
 
     with vdb_tab2:
@@ -1020,7 +1063,7 @@ with tab_vdb:
                 st.info("Video loaded but no chunks indexed.")
         else:
             st.markdown("""
-<div class="empty-state">
+<div style="text-align:center;padding:2.5rem 1rem;color:#9ca3af;font-family:'Space Mono',monospace;font-size:0.75rem">
   🎬<br><br>
   Load a YouTube video in <b>Ingest Data → YouTube</b><br>
   then ask a question to see timestamps and similarity scores.
@@ -1029,10 +1072,8 @@ with tab_vdb:
     with vdb_tab3:
         log = orch.get_routing_log()
         if log:
-            st.markdown("Every message routed through the orchestrator appears here with method and confidence.")
+            st.markdown("Every message routed through the orchestrator appears here.")
             render_routing_log(log)
-
-            # Summary stats
             st.markdown("---")
             methods = [e["method"] for e in log]
             st.markdown("**Routing method breakdown:**")
@@ -1042,7 +1083,7 @@ with tab_vdb:
             c3.metric("Context override", methods.count("context_override"))
         else:
             st.markdown("""
-<div class="empty-state">
+<div style="text-align:center;padding:2.5rem 1rem;color:#9ca3af;font-family:'Space Mono',monospace;font-size:0.75rem">
   ⟳<br><br>
   Send a message using <b>Auto-Route</b> mode<br>
   to see how the orchestrator routes your queries.
@@ -1078,7 +1119,7 @@ with tab_about:
 
 ---
 
-**RAG Pipeline (improved)**
+**RAG Pipeline**
 ```
 Upload → Load docs → Chunk (800 chars, 150 overlap)
        → Embed (MiniLM-L6-v2) → FAISS index
@@ -1101,4 +1142,10 @@ Message → Regex fast-path (instant, no LLM cost)
 GEMINI_API_KEY = "your-key-here"
 GEMINI_MODEL   = "gemini-2.0-flash"
 ```
+
+---
+
+**Keyboard Shortcuts**
+- `Enter` — Send message
+- `Shift + Enter` — New line in message box
 """)
