@@ -18,6 +18,35 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded",
 )
+
+# Force sidebar permanently open — hide the collapse button
+st.markdown("""
+<style>
+/* Hide the collapse/toggle button so sidebar can't be closed */
+[data-testid="stSidebarCollapseButton"] { display: none !important; }
+[data-testid="stSidebarCollapsedControl"] { display: none !important; }
+button[kind="header"] { display: none !important; }
+
+/* Keep sidebar always visible and fixed width */
+[data-testid="stSidebar"] {
+    min-width: 290px !important;
+    max-width: 290px !important;
+    transform: none !important;
+    visibility: visible !important;
+    display: flex !important;
+}
+[data-testid="stSidebar"][aria-expanded="false"] {
+    min-width: 290px !important;
+    max-width: 290px !important;
+    transform: none !important;
+    margin-left: 0 !important;
+}
+/* Ensure main content doesn't overlap sidebar */
+.main .block-container {
+    padding-left: 1.5rem !important;
+}
+</style>
+""", unsafe_allow_html=True)
 st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;700;800&display=swap');
@@ -61,15 +90,7 @@ html, body, [class*="css"] {
     min-width: 280px !important;
 }
 
-[data-testid="stSidebarCollapseButton"] button,
-[data-testid="stSidebarCollapsedControl"] button {
-    background: #ffffff !important;
-    border: 1px solid rgba(59,91,219,0.12) !important;
-    border-radius: 10px !important;
-    color: #1f2937 !important;
-    width: 44px !important; height: 44px !important;
-    box-shadow: 0 6px 14px rgba(59,91,219,0.06);
-}
+/* Collapse button removed — sidebar is permanently pinned open */
 
 /* Header */
 .nexus-header { text-align: center; padding: 1rem 0 0.8rem; }
