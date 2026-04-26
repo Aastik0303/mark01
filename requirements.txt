@@ -50,3 +50,4 @@ requests>=2.32.0
 python-dotenv>=1.0.0      # local .env support (not needed on Streamlit Cloud)
 tenacity>=8.3.0           # retry logic helper
 tiktoken>=0.7.0           # token estimation
+torchvision
