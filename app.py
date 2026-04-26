@@ -400,7 +400,7 @@ with st.sidebar:
   <div style="font-size:1.8rem;font-weight:800;
     background:linear-gradient(135deg,#7c6df2,#3b82f6,#06b6d4);
     -webkit-background-clip:text;-webkit-text-fill-color:transparent;
-    background-clip:text;letter-spacing:-0.02em">⬡ NEXUSRAG</div>
+    background-clip:text;letter-spacing:-0.02em">⬡ NEURALRAG</div>
   <div style="font-family:'Space Mono',monospace;font-size:0.6rem;
     color:#475569;letter-spacing:0.15em;margin-top:0.2rem">MULTI-AGENT AI</div>
 </div>""", unsafe_allow_html=True)
@@ -486,7 +486,7 @@ with st.sidebar:
 # ════════════════════════════════════════════════════════════
 st.markdown("""
 <div class="nexus-header">
-  <div class="nexus-title">NEXUSRAG</div>
+  <div class="nexus-title">NEURALRAG</div>
   <div class="nexus-sub">Multi-Agent Intelligence · Gemini · LangChain · FAISS</div>
 </div>""", unsafe_allow_html=True)
 
