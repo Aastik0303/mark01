@@ -1,62 +1,52 @@
 """
 NexusRAG — Multi-Agent Intelligence Platform
-Streamlit Frontend · Google Gemini · LangChain · FAISS
+Streamlit Frontend · Google Gemini API · LangChain · FAISS
 
 FIXES:
-  - All imports at top-level (never inside tab blocks — was causing crash)
-  - Nested st.tabs() replaced with st.radio() — fixes frozen tab bar
-  - Tab bar CSS: flex-wrap:nowrap + overflow-x:auto — never freezes
-  - SVG-compatible page_icon
-  - Enter-to-send JS
-  - Sidebar permanently pinned open
+  - Enter key submits chat (Shift+Enter for new line)
+  - Vector DB showcase always renders as card grid (never plain text list)
 """
 
 import streamlit as st
-import os, sys, json, tempfile, base64, re, io
+import os, sys, json, tempfile, base64, re
 from pathlib import Path
-import matplotlib
-matplotlib.use("Agg")
-import matplotlib.pyplot as plt
 
-# ── ALL third-party imports at TOP — never inside tab/with blocks ─────────────
-try:
-    import pandas as pd
-    PD_OK = True
-except ImportError:
-    PD_OK = False
-
-try:
-    import seaborn as sns
-    SNS_OK = True
-except ImportError:
-    SNS_OK = False
-
-# ── Safe import of our modules ────────────────────────────────────────────────
-try:
-    from vectordb_showcase import render_vectordb_showcase, render_routing_log
-    VDB_OK = True
-except Exception:
-    VDB_OK = False
-    def render_vectordb_showcase(data, title=""):
-        st.info("vectordb_showcase.py not found in project folder.")
-    def render_routing_log(log):
-        st.info("vectordb_showcase.py not found in project folder.")
-
-
-# ══════════════════════════════════════════════════════════════════════════════
-# PAGE CONFIG  (must be FIRST Streamlit call)
-# ══════════════════════════════════════════════════════════════════════════════
+# ── Page config ───────────────────────────────────────────────────────────────
 st.set_page_config(
-    page_title="NexusRAG · Multi-Agent AI",
+    page_title="NeuralRAG · Multi-Agent AI",
     page_icon="⬡",
     layout="wide",
     initial_sidebar_state="expanded",
 )
 
+# Force sidebar permanently open — hide the collapse button
+st.markdown("""
+<style>
+/* Hide the collapse/toggle button so sidebar can't be closed */
+[data-testid="stSidebarCollapseButton"] { display: none !important; }
+[data-testid="stSidebarCollapsedControl"] { display: none !important; }
+button[kind="header"] { display: none !important; }
 
-# ══════════════════════════════════════════════════════════════════════════════
-# CSS
-# ══════════════════════════════════════════════════════════════════════════════
+/* Keep sidebar always visible and fixed width */
+[data-testid="stSidebar"] {
+    min-width: 290px !important;
+    max-width: 290px !important;
+    transform: none !important;
+    visibility: visible !important;
+    display: flex !important;
+}
+[data-testid="stSidebar"][aria-expanded="false"] {
+    min-width: 290px !important;
+    max-width: 290px !important;
+    transform: none !important;
+    margin-left: 0 !important;
+}
+/* Ensure main content doesn't overlap sidebar */
+.main .block-container {
+    padding-left: 1.5rem !important;
+}
+</style>
+""", unsafe_allow_html=True)
 st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;700;800&display=swap');
@@ -65,222 +55,231 @@ html, body, [class*="css"] {
     font-family: 'Syne', sans-serif;
     background: #f6f9fc;
     color: #0f1724;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
 }
+
+/* Hide default chrome */
 #MainMenu, footer, header { visibility: hidden; }
+
+/* App background with soft radial gradient */
 .stApp {
-    background: radial-gradient(ellipse at 20% 0%, #0f1f3d 0%, #070b14 50%, #0a0514 100%);
+    background: radial-gradient(ellipse at 20% 0%, #eef6ff 0%, #f6f9fc 50%, #f3f7fb 100%);
+    transition: background 300ms ease;
 }
 
-/* scrollbar */
-::-webkit-scrollbar { width: 4px; height: 4px; }
-::-webkit-scrollbar-track { background: #0a0f1e; }
-::-webkit-scrollbar-thumb { background: #3b5bdb; border-radius: 2px; }
+/* Scrollbar */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: #f1f5f9; border-radius: 8px; }
+::-webkit-scrollbar-thumb { background: rgba(59,91,219,0.18); border-radius: 8px; }
 
-/* ── SIDEBAR — permanently pinned, no collapse button ── */
-[data-testid="stSidebarCollapseButton"]   { display: none !important; }
-[data-testid="stSidebarCollapsedControl"] { display: none !important; }
+/* Responsive tweaks */
+@media (max-width: 768px) {
+    .stTabs [data-baseweb="tab"] { font-size: 0.82rem !important; padding: 0.45rem 0.6rem !important; }
+    .stButton > button { min-height: 48px !important; }
+    .bubble-user, .bubble-agent { max-width: 98% !important; font-size: 0.9rem !important; }
+    .agent-bar-desc { display: none !important; }
+    .nexus-title { font-size: 1.9rem !important; }
+}
+
+/* Sidebar */
 [data-testid="stSidebar"] {
-    background: linear-gradient(180deg,#0a0f1e 0%,#070b14 100%) !important;
-    border-right: 1px solid #1e2d4a !important;
-    min-width: 270px !important;
-    max-width: 270px !important;
-    transform: none !important;
-    visibility: visible !important;
+    background: linear-gradient(180deg,#ffffff 0%,#f8fbff 100%) !important;
+    border-right: 1px solid rgba(30,45,74,0.06) !important;
+    box-shadow: 0 6px 18px rgba(15,23,36,0.04);
+    min-width: 280px !important;
 }
 
-/* ── TAB BAR — KEY FIX: scrollable, never wraps, never freezes ── */
-.stTabs [data-baseweb="tab-list"] {
-    background: #0a0f1e !important;
-    border-radius: 8px !important;
-    padding: 3px !important;
-    gap: 3px !important;
-    border: 1px solid #1e2d4a !important;
-    display: flex !important;
-    flex-wrap: nowrap !important;
-    overflow-x: auto !important;
-    overflow-y: hidden !important;
-    -webkit-overflow-scrolling: touch !important;
-    scrollbar-width: none !important;
-}
-.stTabs [data-baseweb="tab-list"]::-webkit-scrollbar { display: none !important; }
-.stTabs [data-baseweb="tab"] {
-    background: transparent !important;
-    color: #64748b !important;
-    border-radius: 6px !important;
-    font-family: 'Syne', sans-serif !important;
-    font-weight: 600 !important;
-    white-space: nowrap !important;
-    flex-shrink: 0 !important;
-    font-size: 0.82rem !important;
-    padding: 0.4rem 0.7rem !important;
-}
-.stTabs [aria-selected="true"] {
-    background: linear-gradient(135deg,#3b5bdb,#7c6df2) !important;
-    color: #fff !important;
-}
+/* Collapse button removed — sidebar is permanently pinned open */
 
-/* buttons */
-.stButton > button {
-    background: linear-gradient(135deg,#1a2744 0%,#111827 100%) !important;
-    color: #c7d2fe !important; border: 1px solid #1e3a5f !important;
-    border-radius: 10px !important; font-family: 'Syne', sans-serif !important;
-    font-weight: 600 !important; text-align: left !important;
-    transition: all 0.2s ease !important; padding: 0.6rem 1rem !important;
-    width: 100% !important;
-}
-.stButton > button:hover {
-    border-color: #7c6df2 !important; color: #fff !important;
-    box-shadow: 0 4px 16px rgba(124,109,242,0.25) !important;
-    transform: translateY(-1px) !important;
-}
-
-/* chat bubbles */
-.bubble-user {
-    background: linear-gradient(135deg,#1e2d4a,#1a1f2e);
-    border: 1px solid #2d4a7a; border-radius: 16px 16px 4px 16px;
-    padding: 0.75rem 1.1rem; max-width: 75%; color: #c7d2fe;
-    font-size: 0.88rem; line-height: 1.5;
-    margin: 0.4rem 0 0.4rem auto; word-break: break-word;
-}
-.bubble-agent {
-    background: linear-gradient(135deg,#111827,#0d1526);
-    border: 1px solid #1e3a5f; border-radius: 4px 16px 16px 16px;
-    padding: 0.75rem 1.1rem; max-width: 85%; color: #e2e8f0;
-    font-size: 0.88rem; line-height: 1.6;
-    margin: 0.4rem 0; word-break: break-word;
-}
-.bubble-label {
-    font-family: 'Space Mono', monospace; font-size: 0.6rem;
-    text-transform: uppercase; letter-spacing: 0.12em;
-    margin-bottom: 0.3rem; opacity: 0.7;
-}
-.bubble-user  .bubble-label { color: #3b82f6; }
-.bubble-agent .bubble-label { color: #7c6df2; }
-
-/* inputs */
-.stTextArea textarea {
-    background: #0a0f1e !important; border: 1px solid #1e3a5f !important;
-    border-radius: 10px !important; color: #e2e8f0 !important;
-    font-family: 'Syne', sans-serif !important; font-size: 0.9rem !important; resize: none !important;
-}
-.stTextArea textarea:focus { border-color: #7c6df2 !important; box-shadow: 0 0 0 2px rgba(124,109,242,0.2) !important; }
-.stTextInput input {
-    background: #0a0f1e !important; border: 1px solid #1e3a5f !important;
-    border-radius: 8px !important; color: #e2e8f0 !important; font-size: 0.9rem !important;
-}
-.stTextInput input:focus { border-color: #7c6df2 !important; }
-.stSelectbox > div > div {
-    background: #0a0f1e !important; border: 1px solid #1e3a5f !important;
-    border-radius: 8px !important; color: #e2e8f0 !important;
-}
-[data-testid="stFileUploader"] {
-    background: #0a0f1e; border: 1px dashed #1e3a5f; border-radius: 12px; padding: 1rem;
-}
-
-/* expander */
-.streamlit-expanderHeader {
-    background: #0a0f1e !important; border: 1px solid #1e3a5f !important;
-    border-radius: 8px !important; color: #7c6df2 !important;
-    font-family: 'Space Mono', monospace !important; font-size: 0.8rem !important;
-}
-
-/* alerts */
-hr { border-color: #1e2d4a !important; }
-.stSuccess { background: #052e16 !important; border-left: 4px solid #10b981 !important; border-radius: 6px !important; }
-.stError   { background: #2d0a0a !important; border-left: 4px solid #ef4444 !important; border-radius: 6px !important; }
-.stInfo    { background: #0c1a2e !important; border-left: 4px solid #3b82f6 !important; border-radius: 6px !important; }
-.stWarning { background: #2d1a00 !important; border-left: 4px solid #f59e0b !important; border-radius: 6px !important; }
-pre { background: #060a12 !important; border: 1px solid #1e3a5f !important; border-radius: 8px !important; }
-
-/* badges */
-.badge {
-    display: inline-flex; align-items: center; gap: 0.35rem;
-    background: #0d1526; border: 1px solid #1e3a5f; border-radius: 20px;
-    padding: 0.2rem 0.7rem; font-family: 'Space Mono', monospace;
-    font-size: 0.65rem; color: #64748b; margin: 0.1rem;
-}
-.badge.on   { border-color: #10b981; color: #10b981; background: #052e16; }
-.badge.off  { border-color: #374151; color: #374151; }
-.badge.info { border-color: #3b82f6; color: #3b82f6; }
-
-/* misc */
-.src-pill {
-    display: inline-block; background: #0d1526; border: 1px solid #1e3a5f;
-    border-radius: 4px; padding: 0.1rem 0.5rem;
-    font-family: 'Space Mono', monospace; font-size: 0.65rem; color: #64748b; margin: 0.1rem;
-}
-.ts-pill {
-    display: inline-block; background: #0d1f3a; border: 1px solid #3b5bdb;
-    border-radius: 4px; padding: 0.15rem 0.6rem;
-    font-family: 'Space Mono', monospace; font-size: 0.7rem; color: #7c6df2;
-    margin: 0.15rem; text-decoration: none;
-}
-.agent-bar {
-    display: flex; align-items: center; gap: 0.8rem; margin-bottom: 0.8rem;
-    background: #0a0f1e; border: 1px solid #1e3a5f; border-radius: 10px;
-    padding: 0.7rem 1rem; flex-wrap: wrap;
-}
-.agent-bar-icon { font-size: 1.4rem; }
-.agent-bar-name { font-weight: 700; font-size: 0.95rem; color: #c7d2fe; }
-.agent-bar-desc { font-size: 0.72rem; color: #475569; font-family: 'Space Mono', monospace; margin-top: 0.1rem; }
-.delegate-tag {
-    display: inline-block; background: #2d1a00; border: 1px solid #f59e0b;
-    color: #f59e0b; border-radius: 4px; padding: 0.05rem 0.4rem;
-    font-family: 'Space Mono', monospace; font-size: 0.6rem; margin-left: 0.4rem;
-}
-.info-card {
-    padding: 0.8rem; background: #0a1628; border-radius: 8px;
-    border-left: 3px solid #7c6df2; margin-top: 0.5rem;
-}
-.info-card-title { color: #e2e8f0; font-weight: 600; }
-.info-card-sub   { color: #94a3b8; font-size: 0.8rem; margin-top: 0.2rem; }
-.conf-pill {
-    display: inline-flex; align-items: center; gap: 0.25rem;
-    font-family: 'Space Mono', monospace; font-size: 0.58rem;
-    border-radius: 4px; padding: 0.05rem 0.35rem; border: 1px solid; margin-left: 0.4rem;
-}
-.conf-high { border-color: #10b981; color: #10b981; background: #052e16; }
-.conf-mid  { border-color: #f59e0b; color: #f59e0b; background: #2d1a00; }
-.conf-low  { border-color: #ef4444; color: #ef4444; background: #2d0a0a; }
-.input-hint {
-    font-family: 'Space Mono', monospace; font-size: 0.6rem;
-    color: #374151; margin-top: 0.25rem; padding-left: 0.1rem;
-}
-.nexus-header { text-align: center; padding: 0.8rem 0 0.6rem; }
+/* Header */
+.nexus-header { text-align: center; padding: 1rem 0 0.8rem; }
 .nexus-title {
     font-size: 2.2rem; font-weight: 800; letter-spacing: -0.02em; line-height: 1;
-    background: linear-gradient(135deg,#7c6df2 0%,#3b82f6 50%,#06b6d4 100%);
+    background: linear-gradient(135deg, #6b8cff 0%, #7c6df2 50%, #3b82f6 100%);
     -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
 }
 .nexus-sub {
-    font-family: 'Space Mono', monospace; color: #475569; font-size: 0.7rem;
-    letter-spacing: 0.14em; text-transform: uppercase; margin-top: 0.3rem;
+    font-family: 'Space Mono', monospace; color: #6b7280; font-size: 0.72rem;
+    letter-spacing: 0.12em; text-transform: uppercase; margin-top: 0.3rem;
 }
 
-/* radio used as sub-nav */
-.stRadio > div { flex-wrap: nowrap !important; gap: 0.4rem; }
-.stRadio label {
-    font-family: 'Space Mono', monospace !important; font-size: 0.72rem !important;
-    color: #64748b !important; background: #0a0f1e !important;
-    border: 1px solid #1e3a5f !important; border-radius: 6px !important;
-    padding: 0.3rem 0.8rem !important; white-space: nowrap !important;
+/* Buttons */
+.stButton > button {
+    background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%) !important;
+    color: #0f1724 !important; border: 1px solid rgba(30,58,138,0.06) !important;
+    border-radius: 12px !important; font-family: 'Syne', sans-serif !important;
+    font-weight: 600 !important; text-align: left !important;
+    transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease !important;
+    padding: 0.7rem 1rem !important; width: 100% !important;
+    box-shadow: 0 6px 18px rgba(15,23,36,0.04);
+}
+.stButton > button:hover {
+    border-color: rgba(59,91,219,0.28) !important; color: #071033 !important;
+    box-shadow: 0 10px 30px rgba(59,91,219,0.08) !important;
+    transform: translateY(-2px) !important;
 }
 
-/* mobile */
-@media (max-width: 768px) {
-    .stTabs [data-baseweb="tab"] { font-size: 0.7rem !important; padding: 0.3rem 0.4rem !important; }
-    .stButton > button { min-height: 46px !important; }
-    .bubble-user, .bubble-agent { max-width: 98% !important; font-size: 0.82rem !important; }
-    .nexus-title { font-size: 1.75rem !important; }
-    .agent-bar-desc { display: none !important; }
+/* Chat bubbles */
+.bubble-user {
+    background: linear-gradient(180deg, #ffffff, #f8fbff);
+    border: 1px solid rgba(30,58,138,0.06);
+    border-radius: 20px 20px 8px 20px;
+    padding: 0.85rem 1.2rem; max-width: 78%;
+    color: #0f1724; font-size: 0.95rem; line-height: 1.5;
+    margin: 0.45rem 0 0.45rem auto; word-break: break-word;
+    box-shadow: inset 0 -1px 0 rgba(15,23,36,0.02);
+}
+.bubble-agent {
+    background: linear-gradient(180deg, #ffffff, #f3f7ff);
+    border: 1px solid rgba(30,58,138,0.05);
+    border-radius: 8px 20px 20px 20px;
+    padding: 0.85rem 1.2rem; max-width: 86%;
+    color: #0b1220; font-size: 0.95rem; line-height: 1.6;
+    margin: 0.45rem 0; word-break: break-word;
+    box-shadow: 0 6px 18px rgba(15,23,36,0.04);
+}
+.bubble-label {
+    font-family: 'Space Mono', monospace; font-size: 0.66rem;
+    text-transform: uppercase; letter-spacing: 0.12em;
+    margin-bottom: 0.35rem; opacity: 0.8;
+}
+.bubble-user  .bubble-label { color: #2563eb; }
+.bubble-agent .bubble-label { color: #6b8cff; }
+
+/* Inputs */
+.stTextArea textarea {
+    background: #ffffff !important; border: 1px solid rgba(30,58,138,0.06) !important;
+    border-radius: 12px !important; color: #0f1724 !important;
+    font-family: 'Syne', sans-serif !important; font-size: 0.95rem !important;
+    resize: none !important; padding: 0.6rem !important;
+    box-shadow: 0 6px 18px rgba(15,23,36,0.03);
+}
+.stTextArea textarea:focus { border-color: rgba(59,91,219,0.22) !important; box-shadow: 0 8px 24px rgba(59,91,219,0.06) !important; }
+.stTextInput input {
+    background: #ffffff !important; border: 1px solid rgba(30,58,138,0.06) !important;
+    border-radius: 10px !important; color: #0f1724 !important; font-size: 0.95rem !important;
+    padding: 0.45rem 0.6rem !important;
+}
+.stTextInput input:focus { border-color: rgba(59,91,219,0.22) !important; box-shadow: 0 8px 24px rgba(59,91,219,0.06) !important; }
+.stSelectbox > div > div {
+    background: #ffffff !important; border: 1px solid rgba(30,58,138,0.06) !important;
+    border-radius: 10px !important; color: #0f1724 !important;
+}
+
+/* File uploader */
+[data-testid="stFileUploader"] {
+    background: #ffffff; border: 1px dashed rgba(30,58,138,0.06); border-radius: 14px; padding: 1rem;
+    box-shadow: 0 6px 18px rgba(15,23,36,0.03);
+}
+
+/* Tabs */
+.stTabs [data-baseweb="tab-list"] {
+    background: #ffffff; border-radius: 12px; padding: 6px; gap: 6px;
+    border: 1px solid rgba(30,45,74,0.04); flex-wrap: nowrap; overflow-x: auto;
+}
+.stTabs [data-baseweb="tab"] {
+    background: transparent !important; color: #475569 !important;
+    border-radius: 10px !important; font-family: 'Syne', sans-serif !important;
+    font-weight: 600 !important; white-space: nowrap;
+}
+.stTabs [aria-selected="true"] {
+    background: linear-gradient(135deg, #dbe7ff, #e9e6ff) !important; color: #071033 !important;
+    box-shadow: 0 8px 20px rgba(59,91,219,0.04);
+}
+
+/* Expander */
+.streamlit-expanderHeader {
+    background: #ffffff !important; border: 1px solid rgba(30,58,138,0.06) !important;
+    border-radius: 10px !important; color: #2563eb !important;
+    font-family: 'Space Mono', monospace !important; font-size: 0.86rem !important;
+}
+
+/* Badges */
+.badge {
+    display: inline-flex; align-items: center; gap: 0.35rem;
+    background: #ffffff; border: 1px solid rgba(30,58,138,0.06); border-radius: 20px;
+    padding: 0.25rem 0.7rem; font-family: 'Space Mono', monospace;
+    font-size: 0.72rem; color: #475569; margin: 0.1rem;
+    box-shadow: 0 6px 14px rgba(15,23,36,0.03);
+}
+.badge.on   { border-color: rgba(16,185,129,0.12); color: #059669; background: #f0fbf6; }
+.badge.off  { border-color: rgba(55,65,81,0.06); color: #6b7280; }
+.badge.info { border-color: rgba(59,130,246,0.12); color: #2563eb; background: #f0f7ff; }
+.badge.warn { border-color: rgba(245,158,11,0.12); color: #b45309; background: #fff7ed; }
+
+hr { border-color: rgba(30,45,74,0.04) !important; }
+[data-testid="metric-container"] {
+    background: #ffffff; border: 1px solid rgba(30,45,74,0.04); border-radius: 12px; padding: 0.6rem;
+    box-shadow: 0 6px 18px rgba(15,23,36,0.03);
+}
+.stSuccess { background: #f0fbf6 !important; border-left: 4px solid #10b981 !important; border-radius: 8px !important; }
+.stError   { background: #fff5f5 !important; border-left: 4px solid #ef4444 !important; border-radius: 8px !important; }
+.stInfo    { background: #f0f7ff !important; border-left: 4px solid #3b82f6 !important; border-radius: 8px !important; }
+.stWarning { background: #fffaf0 !important; border-left: 4px solid #f59e0b !important; border-radius: 8px !important; }
+pre { background: #ffffff !important; border: 1px solid rgba(30,58,138,0.04) !important; border-radius: 12px !important; padding: 0.8rem !important; }
+
+.src-pill {
+    display: inline-block; background: #ffffff; border: 1px solid rgba(30,58,138,0.04);
+    border-radius: 6px; padding: 0.15rem 0.6rem;
+    font-family: 'Space Mono', monospace; font-size: 0.72rem; color: #475569; margin: 0.1rem;
+}
+.ts-pill {
+    display: inline-block; background: #eef4ff; border: 1px solid rgba(59,91,219,0.08);
+    border-radius: 6px; padding: 0.2rem 0.6rem;
+    font-family: 'Space Mono', monospace; font-size: 0.75rem; color: #3b5bdb;
+    margin: 0.15rem; text-decoration: none;
+}
+
+.agent-bar {
+    display: flex; align-items: center; gap: 0.9rem; margin-bottom: 0.9rem;
+    background: #ffffff; border: 1px solid rgba(30,58,138,0.04); border-radius: 12px;
+    padding: 0.8rem 1rem; flex-wrap: wrap; box-shadow: 0 6px 18px rgba(15,23,36,0.03);
+}
+.agent-bar-icon { font-size: 1.4rem; color: #3b5bdb; }
+.agent-bar-name { font-weight: 700; font-size: 0.98rem; color: #0f1724; }
+.agent-bar-desc { font-size: 0.78rem; color: #6b7280; font-family: 'Space Mono', monospace; margin-top: 0.1rem; }
+.delegate-tag {
+    display: inline-block; background: #fff7ed; border: 1px solid rgba(245,158,11,0.12);
+    color: #b45309; border-radius: 6px; padding: 0.06rem 0.45rem;
+    font-family: 'Space Mono', monospace; font-size: 0.68rem; margin-left: 0.4rem;
+}
+.info-card {
+    padding: 0.9rem; background: #ffffff; border-radius: 12px;
+    border-left: 3px solid #7c6df2; margin-top: 0.5rem; box-shadow: 0 6px 18px rgba(15,23,36,0.03);
+}
+.info-card-title { color: #0f1724; font-weight: 600; }
+.info-card-sub   { color: #6b7280; font-size: 0.86rem; margin-top: 0.25rem; }
+
+.conf-pill {
+    display: inline-flex; align-items: center; gap: 0.25rem;
+    font-family: 'Space Mono', monospace; font-size: 0.68rem;
+    border-radius: 6px; padding: 0.06rem 0.4rem;
+    border: 1px solid; margin-left: 0.4rem;
+}
+.conf-high { border-color: #10b981; color: #065f46; background: #f0fbf6; }
+.conf-mid  { border-color: #f59e0b; color: #92400e; background: #fff7ed; }
+.conf-low  { border-color: #ef4444; color: #7f1d1d; background: #fff5f5; }
+
+/* ── Enter-to-send hint ── */
+.input-hint {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.6rem;
+    color: #9ca3af;
+    margin-top: 0.25rem;
+    padding-left: 0.2rem;
+}
+
+.stButton > button,
+.bubble-user, .bubble-agent,
+.stTextArea textarea, .stTextInput input,
+[data-testid="stSidebar"], .agent-bar, .info-card {
+    transition: all 220ms cubic-bezier(.2,.9,.2,1);
 }
 </style>
 """, unsafe_allow_html=True)
 
-
-# ══════════════════════════════════════════════════════════════════════════════
-# SESSION STATE
-# ══════════════════════════════════════════════════════════════════════════════
+# ── Session state ─────────────────────────────────────────────────────────────
 def _ss(k, v):
     if k not in st.session_state:
         st.session_state[k] = v
@@ -288,25 +287,25 @@ def _ss(k, v):
 GEMINI_API_KEY = st.secrets.get("GEMINI_API_KEY", "")
 GEMINI_MODEL   = st.secrets.get("GEMINI_MODEL",   "gemini-2.0-flash")
 
-_ss("agents_ready",     False)
-_ss("orchestrator",     None)
-_ss("active_agent",     "chat")
-_ss("messages",         [])
-_ss("rag_ingested",     False)
-_ss("video_ingested",   False)
-_ss("data_loaded",      False)
-_ss("data_filename",    "")
-_ss("data_shape",       "")
-_ss("data_columns",     [])
-_ss("_boot_error",      "")
-_ss("video_url_saved",  "")
-_ss("video_lang_saved", "en")
-_ss("last_vstore_data", None)
+_ss("agents_ready",      False)
+_ss("orchestrator",      None)
+_ss("active_agent",      "chat")
+_ss("messages",          [])
+_ss("rag_ingested",      False)
+_ss("video_ingested",    False)
+_ss("data_loaded",       False)
+_ss("data_filename",     "")
+_ss("data_shape",        "")
+_ss("data_columns",      [])
+_ss("_boot_error",       "")
+_ss("video_url_saved",   "")
+_ss("video_lang_saved",  "en")
+_ss("last_vstore_data",  None)
+_ss("last_routing",      None)
+_ss("_enter_submit",     "")   # ← holds pending Enter-key submission
 
 
-# ══════════════════════════════════════════════════════════════════════════════
-# INIT AGENTS
-# ══════════════════════════════════════════════════════════════════════════════
+# ── Init agents ───────────────────────────────────────────────────────────────
 def init_agents():
     from agents import MultiAgentOrchestrator, set_api_key
     set_api_key(GEMINI_API_KEY, GEMINI_MODEL)
@@ -322,9 +321,7 @@ if not st.session_state.agents_ready:
         st.session_state._boot_error = str(e)
 
 
-# ══════════════════════════════════════════════════════════════════════════════
-# HELPERS
-# ══════════════════════════════════════════════════════════════════════════════
+# ── Helpers ───────────────────────────────────────────────────────────────────
 def push_msg(role, content, agent="", chart=None, code=None, lang="python",
              sources=None, research_sources=None, queries=None,
              timestamps=None, delegated=False, vstore_data=None, routing=None):
@@ -340,6 +337,7 @@ def push_msg(role, content, agent="", chart=None, code=None, lang="python",
         "routing":          routing,
     })
 
+
 def get_context():
     return {
         "rag_ingested":   st.session_state.rag_ingested,
@@ -348,28 +346,15 @@ def get_context():
         "data_filename":  st.session_state.data_filename,
     }
 
-def _conf_class(conf):
+
+def _conf_class(conf: float) -> str:
     if conf >= 0.8: return "conf-high"
     if conf >= 0.5: return "conf-mid"
     return "conf-low"
 
-def dark_fig(figsize=(9, 4)):
-    fig, ax = plt.subplots(figsize=figsize)
-    fig.patch.set_facecolor("#0f1117"); ax.set_facecolor("#1a1d2e")
-    ax.tick_params(colors="white")
-    ax.xaxis.label.set_color("white"); ax.yaxis.label.set_color("white")
-    ax.title.set_color("white")
-    for sp in ax.spines.values(): sp.set_edgecolor("#333")
-    return fig, ax
-
-def show_fig(fig):
-    buf = io.BytesIO()
-    fig.savefig(buf, format="png", dpi=150, bbox_inches="tight")
-    buf.seek(0)
-    st.image(buf, use_container_width=True)
-    plt.close(fig)
 
 def render_message(msg):
+    from vectordb_showcase import render_vectordb_showcase
     role    = msg["role"]
     content = msg["content"]
     agent   = msg.get("agent", "NEXUS")
@@ -381,19 +366,22 @@ def render_message(msg):
   {content}
 </div>""", unsafe_allow_html=True)
     else:
-        del_tag    = '<span class="delegate-tag">↗ delegated</span>' if msg.get("delegated") else ""
+        del_tag = '<span class="delegate-tag">↗ delegated</span>' if msg.get("delegated") else ""
+
         routing    = msg.get("routing") or {}
         conf_badge = ""
         if routing:
-            conf   = routing.get("confidence", 0)
+            conf = routing.get("confidence", 0)
             method = routing.get("method", "")
-            cc     = _conf_class(conf)
+            cc = _conf_class(conf)
             conf_badge = f'<span class="conf-pill {cc}">{method} {int(conf*100)}%</span>'
+
         st.markdown(f"""
 <div class="bubble-agent">
   <div class="bubble-label">⬡ {agent}{del_tag}{conf_badge}</div>
   {content.replace(chr(10), "<br>")}
 </div>""", unsafe_allow_html=True)
+
         if msg.get("chart"):
             st.image(base64.b64decode(msg["chart"]), use_container_width=True)
         if msg.get("code"):
@@ -418,60 +406,80 @@ def render_message(msg):
                 for q in msg["queries"]:
                     st.markdown(f"`{q}`")
         if msg.get("vstore_data") and msg["vstore_data"].get("total_chunks", 0) > 0:
-            with st.expander("◈ Vector DB — Retrieved Chunks", expanded=False):
+            with st.expander("◈ Vector DB Showcase", expanded=False):
                 render_vectordb_showcase(msg["vstore_data"])
 
-def inject_enter_js():
+
+# ── Enter-to-send JS injection ────────────────────────────────────────────────
+def inject_enter_to_send():
+    """
+    Inject JS so that pressing Enter in the chat textarea triggers the Send button.
+    Shift+Enter inserts a newline as normal.
+    We identify the textarea by placeholder text and the button by its text content.
+    """
     st.markdown("""
 <script>
-(function(){
-  function attach(){
-    window.parent.document.querySelectorAll('textarea').forEach(function(ta){
-      if(ta._nexusOk) return;
-      ta._nexusOk = true;
-      ta.addEventListener('keydown', function(e){
-        if(e.key==='Enter' && !e.shiftKey){
+(function() {
+  function attachEnterListener() {
+    // Find all textareas in the page
+    const textareas = window.parent.document.querySelectorAll('textarea');
+    textareas.forEach(function(ta) {
+      if (ta._nexusEnterAttached) return;
+      ta._nexusEnterAttached = true;
+      ta.addEventListener('keydown', function(e) {
+        // Enter without Shift = send
+        if (e.key === 'Enter' && !e.shiftKey) {
           e.preventDefault();
-          window.parent.document.querySelectorAll('button').forEach(function(b){
-            if(b.innerText && (b.innerText.includes('\u2b06') || b.innerText.trim()==='Send')){
-              b.click();
+          // Find the Send button — it contains the ⬆ symbol or "Send" text
+          const buttons = window.parent.document.querySelectorAll('button');
+          for (let btn of buttons) {
+            if (btn.innerText && (btn.innerText.includes('⬆') || btn.innerText.trim() === 'Send')) {
+              btn.click();
+              break;
             }
-          });
+          }
         }
       });
     });
   }
-  attach();
-  new MutationObserver(attach).observe(window.parent.document.body,{childList:true,subtree:true});
+  // Run immediately and re-run on DOM changes (Streamlit re-renders)
+  attachEnterListener();
+  const observer = new MutationObserver(attachEnterListener);
+  observer.observe(window.parent.document.body, { childList: true, subtree: true });
 })();
-</script>""", unsafe_allow_html=True)
+</script>
+""", unsafe_allow_html=True)
 
 
-# ══════════════════════════════════════════════════════════════════════════════
+# ════════════════════════════════════════════════════════════
 # SIDEBAR
-# ══════════════════════════════════════════════════════════════════════════════
+# ════════════════════════════════════════════════════════════
 with st.sidebar:
     st.markdown("""
 <div style="text-align:center;padding:0.5rem 0 1rem">
   <div style="font-size:1.8rem;font-weight:800;
     background:linear-gradient(135deg,#7c6df2,#3b82f6,#06b6d4);
     -webkit-background-clip:text;-webkit-text-fill-color:transparent;
-    background-clip:text;letter-spacing:-0.02em">⬡ NEXUSRAG</div>
+    background-clip:text;letter-spacing:-0.02em">⬡ NEURALRAG</div>
   <div style="font-family:'Space Mono',monospace;font-size:0.6rem;
     color:#475569;letter-spacing:0.15em;margin-top:0.2rem">MULTI-AGENT AI</div>
 </div>""", unsafe_allow_html=True)
 
     st.markdown("---")
+
     if st.session_state.agents_ready:
         st.markdown(f'<span class="badge on">● ONLINE · {GEMINI_MODEL}</span>', unsafe_allow_html=True)
     else:
         st.markdown('<span class="badge off">● OFFLINE</span>', unsafe_allow_html=True)
         if st.button("🔄 Retry", use_container_width=True):
-            try: init_agents(); st.rerun()
-            except Exception as e: st.error(str(e))
+            try:
+                init_agents(); st.rerun()
+            except Exception as e:
+                st.error(f"❌ {e}")
 
     st.markdown("---")
     st.markdown("**⬡ Select Agent**")
+
     AGENTS = [
         ("chat",     "🤖", "General Chatbot",  "Smart hub · memory · auto-delegates"),
         ("rag",      "📄", "Document Q&A",     "PDF · DOCX · TXT semantic search"),
@@ -481,6 +489,7 @@ with st.sidebar:
         ("research", "🔬", "Web Researcher",   "Multi-step live web research"),
         ("auto",     "🧠", "Auto-Route",       "LLM picks the best agent"),
     ]
+
     for aid, icon, name, desc in AGENTS:
         is_active = st.session_state.active_agent == aid
         label = f"{icon} **{name}** ←" if is_active else f"{icon} {name}"
@@ -516,6 +525,7 @@ with st.sidebar:
         log = st.session_state.orchestrator.get_routing_log()
         if log:
             with st.expander("⟳ Routing Log", expanded=False):
+                from vectordb_showcase import render_routing_log
                 render_routing_log(log)
 
     if st.session_state.last_vstore_data:
@@ -523,35 +533,37 @@ with st.sidebar:
         st.markdown("---")
         st.markdown("**◈ Vector DB**")
         st.markdown(
-            f'<span class="badge info">🗂 {vd.get("total_chunks",0)} chunks</span> '
+            f'<span class="badge info">🗂 {vd.get("total_chunks",0)} chunks</span>'
             f'<span class="badge info">📐 {vd.get("embedding_dim",0)}d</span>',
             unsafe_allow_html=True,
         )
 
 
-# ══════════════════════════════════════════════════════════════════════════════
+# ════════════════════════════════════════════════════════════
 # HEADER
-# ══════════════════════════════════════════════════════════════════════════════
+# ════════════════════════════════════════════════════════════
 st.markdown("""
 <div class="nexus-header">
-  <div class="nexus-title">NEXUSRAG</div>
+  <div class="nexus-title">NEURALRAG</div>
   <div class="nexus-sub">Multi-Agent Intelligence · Gemini · LangChain · FAISS</div>
 </div>""", unsafe_allow_html=True)
 
 if st.session_state._boot_error:
-    st.error(f"⚠️ Boot error: {st.session_state._boot_error}")
+    st.error(f"⚠️ {st.session_state._boot_error}")
 
 if not st.session_state.agents_ready:
-    st.error("⚠️ Could not initialise agents. Check your .streamlit/secrets.toml")
+    st.error("⚠️ Could not connect. Please refresh the page.")
     if st.button("🔄 Retry Connection"):
-        try: init_agents(); st.rerun()
-        except Exception as e: st.error(str(e))
+        try:
+            init_agents(); st.rerun()
+        except Exception as e:
+            st.error(str(e))
     st.stop()
 
 orch   = st.session_state.orchestrator
 active = st.session_state.active_agent
 
-# Auto-restore video on server restart
+# Auto-restore video after server restart
 if (st.session_state.get("video_ingested")
         and st.session_state.get("video_url_saved")
         and not orch.video_rag.is_ready()):
@@ -564,11 +576,11 @@ if (st.session_state.get("video_ingested")
         pass
 
 
-# ══════════════════════════════════════════════════════════════════════════════
-# MAIN TABS — top-level ONLY, NO nested st.tabs() anywhere in this file
-# ══════════════════════════════════════════════════════════════════════════════
+# ════════════════════════════════════════════════════════════
+# TABS
+# ════════════════════════════════════════════════════════════
 tab_chat, tab_ingest, tab_viz, tab_vdb, tab_about = st.tabs([
-    "💬 Chat", "📥 Ingest", "📊 Visualize", "◈ Vector DB", "ℹ️ About"
+    "💬 Chat", "📥 Ingest Data", "📊 Visualize", "◈ Vector DB", "ℹ️ About"
 ])
 
 
@@ -576,6 +588,7 @@ tab_chat, tab_ingest, tab_viz, tab_vdb, tab_about = st.tabs([
 # TAB 1 — CHAT
 # ════════════════════════════════════════════════════════════
 with tab_chat:
+
     AGENT_META = {
         "chat":     ("🤖", "General Chatbot",  "Conversational AI with memory · auto-delegates"),
         "rag":      ("📄", "Document Q&A",     "Semantic search over your uploaded documents"),
@@ -585,6 +598,7 @@ with tab_chat:
         "research": ("🔬", "Web Researcher",   "Multi-step live web research"),
         "auto":     ("🧠", "Auto-Route",       "LLM picks the best agent automatically"),
     }
+
     icon, name, desc = AGENT_META.get(active, ("⬡", "NEXUS", ""))
     st.markdown(f"""
 <div class="agent-bar">
@@ -595,43 +609,47 @@ with tab_chat:
   </div>
 </div>""", unsafe_allow_html=True)
 
-    # Message history
-    if not st.session_state.messages:
-        st.markdown("""
-<div style="text-align:center;padding:3rem 1rem;opacity:0.35;
-  font-family:'Space Mono',monospace;font-size:0.78rem;color:#475569">
-  ⬡<br><br>Start a conversation · Upload documents · Load a YouTube video<br>
-  <span style="font-size:0.65rem">Select an agent from the sidebar or use Auto-Route</span>
+    # ── Message history ───────────────────────────────────────────────────────
+    chat_container = st.container()
+    with chat_container:
+        if not st.session_state.messages:
+            st.markdown("""
+<div style="text-align:center;padding:3rem 1rem;color:#9ca3af;font-family:'Space Mono',monospace;font-size:0.78rem">
+  ⬡<br><br>
+  Start a conversation · Upload documents · Load a YouTube video<br>
+  <span style="font-size:0.65rem;color:#374151">Select an agent from the sidebar or use Auto-Route</span>
 </div>""", unsafe_allow_html=True)
-    else:
-        for msg in st.session_state.messages:
-            render_message(msg)
+        else:
+            for msg in st.session_state.messages:
+                render_message(msg)
 
-    st.markdown("<div style='height:0.4rem'></div>", unsafe_allow_html=True)
-
-    # YouTube URL bar (video agent only)
+    # ── YouTube URL ingest inline for video agent ─────────────────────────────
     if active == "video":
-        c_url, c_lang, c_btn = st.columns([4, 1, 1])
-        yt_url  = c_url.text_input("YouTube URL", placeholder="https://youtube.com/watch?v=...",
+        col_url, col_lang, col_btn = st.columns([4, 1, 1])
+        with col_url:
+            yt_url = st.text_input("YouTube URL", placeholder="https://youtube.com/watch?v=...",
                                    key="yt_url_input", label_visibility="collapsed")
-        yt_lang = c_lang.selectbox("Lang", ["en","hi","es","fr","de","ja","ko","pt","ar","ru"],
+        with col_lang:
+            yt_lang = st.selectbox("Lang", ["en","hi","es","fr","de","ja","ko","pt","ar","ru"],
                                    key="yt_lang_sel", label_visibility="collapsed")
-        if c_btn.button("▶ Load", key="yt_load_btn", use_container_width=True):
-            if yt_url.strip():
-                with st.spinner("Loading video…"):
-                    r = orch.video_rag.ingest(yt_url.strip(), language=yt_lang)
-                if "Error" not in r:
-                    st.session_state.video_ingested   = True
-                    st.session_state.video_url_saved  = yt_url.strip()
-                    st.session_state.video_lang_saved = yt_lang
-                    st.session_state.last_vstore_data = orch.video_rag.get_showcase_data()
-                    st.success(r)
+        with col_btn:
+            if st.button("▶ Load", key="yt_load_btn", use_container_width=True):
+                if yt_url.strip():
+                    with st.spinner("Loading video…"):
+                        msg = orch.video_rag.ingest(yt_url.strip(), language=yt_lang)
+                    if "Error" not in msg:
+                        st.session_state.video_ingested   = True
+                        st.session_state.video_url_saved  = yt_url.strip()
+                        st.session_state.video_lang_saved = yt_lang
+                        vd = orch.video_rag.get_showcase_data()
+                        st.session_state.last_vstore_data = vd
+                        st.success(msg)
+                    else:
+                        st.error(msg)
                 else:
-                    st.error(r)
-            else:
-                st.warning("Please enter a YouTube URL.")
+                    st.warning("Please enter a YouTube URL.")
 
-    # Code language selector
+    # ── Code agent language selector ──────────────────────────────────────────
     if active == "code":
         code_lang = st.selectbox(
             "Language",
@@ -639,35 +657,45 @@ with tab_chat:
             key="code_lang_sel",
         )
 
-    # Input row
+    # ── Input area ────────────────────────────────────────────────────────────
+    st.markdown("<div style='height:0.4rem'></div>", unsafe_allow_html=True)
+
     placeholder_map = {
         "chat":     "Ask anything… (Enter to send · Shift+Enter for new line)",
-        "rag":      "Ask about your uploaded documents…",
-        "video":    "Ask about the loaded video…",
-        "data":     "Ask about your data…",
-        "code":     "Describe what code you need…",
-        "research": "What do you want to research?",
-        "auto":     "Ask anything — I'll route to the best agent…",
+        "rag":      "Ask about your uploaded documents… (Enter to send)",
+        "video":    "Ask about the loaded video… (Enter to send)",
+        "data":     "Ask about your data… (Enter to send)",
+        "code":     "Describe what code you need… (Enter to send)",
+        "research": "What do you want to research? (Enter to send)",
+        "auto":     "Ask anything — I'll route to the best agent… (Enter to send)",
     }
-    col_in, col_send = st.columns([6, 1])
-    with col_in:
+
+    col_input, col_send = st.columns([6, 1])
+    with col_input:
         user_input = st.text_area(
             "Message",
-            placeholder=placeholder_map.get(active, "Type your message…"),
-            height=80, key="chat_input", label_visibility="collapsed",
+            placeholder=placeholder_map.get(active, "Type your message… (Enter to send)"),
+            height=80,
+            key="chat_input",
+            label_visibility="collapsed",
         )
-        st.markdown('<div class="input-hint">↵ Enter to send · Shift+↵ new line</div>',
-                    unsafe_allow_html=True)
+        # Hint below textarea
+        st.markdown(
+            '<div class="input-hint">↵ Enter to send &nbsp;·&nbsp; Shift+↵ for new line</div>',
+            unsafe_allow_html=True,
+        )
     with col_send:
-        st.markdown("<div style='height:1.15rem'></div>", unsafe_allow_html=True)
+        st.markdown("<div style='height:1.2rem'></div>", unsafe_allow_html=True)
         send = st.button("⬆ Send", key="send_btn", use_container_width=True)
 
-    inject_enter_js()
+    # ── Inject Enter-to-send JS ───────────────────────────────────────────────
+    inject_enter_to_send()
 
-    # Handle send
+    # ── Handle send ───────────────────────────────────────────────────────────
     if send and user_input.strip():
         q = user_input.strip()
         push_msg("user", q)
+
         with st.spinner("Thinking…"):
             try:
                 if active == "auto":
@@ -675,88 +703,105 @@ with tab_chat:
                     routing  = result.get("_routing", {})
                     agent_id = routing.get("agent", "chat")
                     vd       = result.get("vstore_data")
-                    if vd: st.session_state.last_vstore_data = vd
-                    push_msg("assistant", result.get("answer", ""),
-                             agent=agent_id.upper(), chart=result.get("chart"),
-                             code=result.get("code"), lang=result.get("lang","python"),
-                             sources=result.get("sources",[]),
-                             research_sources=result.get("sources",[]) if agent_id=="research" else [],
-                             queries=result.get("queries",[]),
-                             timestamps=result.get("timestamps",[]),
-                             vstore_data=vd, routing=routing, delegated=True)
+                    if vd:
+                        st.session_state.last_vstore_data = vd
+                    push_msg(
+                        "assistant", result.get("answer", ""),
+                        agent=agent_id.upper(),
+                        chart=result.get("chart"),
+                        code=result.get("code"),
+                        lang=result.get("lang", "python"),
+                        sources=result.get("sources", []),
+                        research_sources=result.get("sources", []) if agent_id == "research" else [],
+                        queries=result.get("queries", []),
+                        timestamps=result.get("timestamps", []),
+                        vstore_data=vd,
+                        routing=routing,
+                        delegated=True,
+                    )
 
                 elif active == "rag":
                     if not st.session_state.rag_ingested:
-                        push_msg("assistant",
-                                 "⚠️ No documents loaded. Upload files in the **Ingest** tab.",
-                                 agent="RAG")
+                        push_msg("assistant", "⚠️ No documents loaded. Please upload files in the **Ingest Data** tab.", agent="RAG")
                     else:
                         result = orch.rag.query(q)
-                        vd = result.get("vstore_data")
-                        if vd: st.session_state.last_vstore_data = vd
-                        push_msg("assistant", result["answer"], agent="RAG",
-                                 sources=result.get("sources",[]), vstore_data=vd)
+                        vd     = result.get("vstore_data")
+                        if vd:
+                            st.session_state.last_vstore_data = vd
+                        push_msg(
+                            "assistant", result["answer"],
+                            agent="RAG",
+                            sources=result.get("sources", []),
+                            vstore_data=vd,
+                        )
 
                 elif active == "video":
                     if not st.session_state.video_ingested:
-                        push_msg("assistant",
-                                 "⚠️ No video loaded. Paste a YouTube URL above and click Load.",
-                                 agent="VIDEO RAG")
+                        push_msg("assistant", "⚠️ No video loaded. Paste a YouTube URL above and click **▶ Load**.", agent="VIDEO RAG")
                     else:
                         result = orch.video_rag.query(q)
-                        vd = result.get("vstore_data")
-                        if vd: st.session_state.last_vstore_data = vd
-                        push_msg("assistant", result["answer"], agent="VIDEO RAG",
-                                 timestamps=result.get("timestamps",[]), vstore_data=vd)
+                        vd     = result.get("vstore_data")
+                        if vd:
+                            st.session_state.last_vstore_data = vd
+                        push_msg(
+                            "assistant", result["answer"],
+                            agent="VIDEO RAG",
+                            timestamps=result.get("timestamps", []),
+                            vstore_data=vd,
+                        )
 
                 elif active == "data":
                     if not st.session_state.data_loaded:
-                        push_msg("assistant",
-                                 "⚠️ No data loaded. Upload a CSV/Excel in the **Ingest** tab.",
-                                 agent="DATA")
+                        push_msg("assistant", "⚠️ No data loaded. Upload a CSV or Excel file in the **Ingest Data** tab.", agent="DATA")
                     else:
                         result = orch.data_agent.analyze(q)
-                        push_msg("assistant", result["answer"], agent="DATA",
-                                 chart=result.get("chart"))
+                        push_msg(
+                            "assistant", result["answer"],
+                            agent="DATA",
+                            chart=result.get("chart"),
+                        )
 
                 elif active == "code":
                     lang   = st.session_state.get("code_lang_sel", "python")
                     result = orch.code_agent.generate(q, language=lang)
-                    push_msg("assistant", result["answer"], agent="CODE",
-                             code=result.get("code",""), lang=lang)
+                    push_msg(
+                        "assistant", result["answer"],
+                        agent="CODE",
+                        code=result.get("code", ""),
+                        lang=lang,
+                    )
 
                 elif active == "research":
                     result = orch.research_agent.research(q)
-                    push_msg("assistant", result["answer"], agent="RESEARCH",
-                             research_sources=result.get("sources",[]),
-                             queries=result.get("queries",[]))
+                    push_msg(
+                        "assistant", result["answer"],
+                        agent="RESEARCH",
+                        research_sources=result.get("sources", []),
+                        queries=result.get("queries", []),
+                    )
 
                 else:  # chat
-                    push_msg("assistant", orch.chatbot.chat(q), agent="NEXUS")
+                    answer = orch.chatbot.chat(q)
+                    push_msg("assistant", answer, agent="NEXUS")
 
             except Exception as e:
                 push_msg("assistant", f"⚠️ Error: {e}", agent="SYSTEM")
+
         st.rerun()
 
 
 # ════════════════════════════════════════════════════════════
-# TAB 2 — INGEST  (uses st.radio — NO nested st.tabs)
+# TAB 2 — INGEST DATA
 # ════════════════════════════════════════════════════════════
 with tab_ingest:
+    from vectordb_showcase import render_vectordb_showcase
+
     st.markdown("### 📥 Ingest Data")
+    ing_tab1, ing_tab2, ing_tab3 = st.tabs(["📄 Documents", "🎬 YouTube", "📊 CSV / Excel"])
 
-    ingest_choice = st.radio(
-        "Source",
-        ["📄 Documents", "🎬 YouTube", "📊 CSV / Excel"],
-        horizontal=True,
-        key="ingest_radio",
-        label_visibility="collapsed",
-    )
-    st.markdown("---")
-
-    # Documents
-    if ingest_choice == "📄 Documents":
-        st.markdown("Upload **PDF, TXT, MD, or CSV** files to enable Document Q&A.")
+    # ── Documents ─────────────────────────────────────────────────────────────
+    with ing_tab1:
+        st.markdown("Upload PDF, TXT, MD, or CSV files to enable Document Q&A.")
         uploaded = st.file_uploader(
             "Drop files here", type=["pdf","txt","md","csv","docx"],
             accept_multiple_files=True, key="doc_uploader",
@@ -771,46 +816,42 @@ with tab_ingest:
                         tmp = tempfile.NamedTemporaryFile(delete=False, suffix=Path(f.name).suffix)
                         tmp.write(f.read()); tmp.flush()
                         paths.append(tmp.name)
-                    result_msg = orch.rag.ingest(paths)
-                if "Error" not in result_msg:
-                    st.session_state.rag_ingested = True
+                    msg = orch.rag.ingest(paths)
+                if "Error" not in msg:
+                    st.session_state.rag_ingested    = True
                     vd = orch.rag.get_showcase_data()
                     st.session_state.last_vstore_data = vd
-                    st.success(result_msg)
+                    st.success(msg)
                     render_vectordb_showcase(vd, title="Document Vector Store")
                 else:
-                    st.error(result_msg)
+                    st.error(msg)
         elif st.session_state.rag_ingested:
             vd = orch.rag.get_showcase_data()
             if vd.get("total_chunks", 0) > 0:
                 render_vectordb_showcase(vd, title="Document Vector Store")
 
-    # YouTube
-    elif ingest_choice == "🎬 YouTube":
+    # ── YouTube ───────────────────────────────────────────────────────────────
+    with ing_tab2:
         st.markdown("Load a YouTube video to enable transcript Q&A.")
-        yt_url2  = st.text_input("YouTube URL",
-                                 placeholder="https://youtube.com/watch?v=...",
-                                 key="yt_url_ingest")
-        yt_lang2 = st.selectbox("Transcript language",
-                                ["en","hi","es","fr","de","ja","ko","pt","ar","ru"],
-                                key="yt_lang_ingest")
+        yt_url2  = st.text_input("YouTube URL", placeholder="https://youtube.com/watch?v=...", key="yt_url_ingest")
+        yt_lang2 = st.selectbox("Transcript language", ["en","hi","es","fr","de","ja","ko","pt","ar","ru"], key="yt_lang_ingest")
         if st.button("▶ Load Video", key="load_yt_ingest", use_container_width=True):
             if yt_url2.strip():
                 with st.spinner("Fetching transcript…"):
-                    r = orch.video_rag.ingest(yt_url2.strip(), language=yt_lang2)
-                if "Error" not in r:
+                    msg = orch.video_rag.ingest(yt_url2.strip(), language=yt_lang2)
+                if "Error" not in msg:
                     st.session_state.video_ingested   = True
                     st.session_state.video_url_saved  = yt_url2.strip()
                     st.session_state.video_lang_saved = yt_lang2
                     vd = orch.video_rag.get_showcase_data()
                     st.session_state.last_vstore_data = vd
-                    st.success(r)
+                    st.success(msg)
                     info = orch.video_rag.get_info()
                     if info.get("thumbnail"):
                         st.image(info["thumbnail"], width=280)
                     render_vectordb_showcase(vd, title="YouTube Vector Store")
                 else:
-                    st.error(r)
+                    st.error(msg)
             else:
                 st.warning("Please enter a YouTube URL.")
 
@@ -821,42 +862,41 @@ with tab_ingest:
   <div class="info-card-title">🎬 {info.get('title','Unknown')}</div>
   <div class="info-card-sub">
     {info.get('channel','?')} · {info.get('duration','?')} ·
-    {info.get('transcript_segments',0)} segments · source: {info.get('source_type','?')}
+    {info.get('transcript_segments',0)} segments ·
+    source: {info.get('source_type','?')}
   </div>
 </div>""", unsafe_allow_html=True)
-            sum_style = st.selectbox("Summary style",
-                                    ["detailed","brief","bullets"], key="sum_style_sel")
+
+            sum_style = st.selectbox("Summary style", ["detailed","brief","bullets"], key="sum_style_sel")
             if st.button("📝 Summarize Video", key="sum_video_btn", use_container_width=True):
                 with st.spinner("Summarizing…"):
                     s = orch.video_rag.summarize(style=sum_style)
                 st.markdown(s.get("summary", ""))
 
-    # CSV / Excel
-    elif ingest_choice == "📊 CSV / Excel":
-        st.markdown("Upload a **CSV or Excel** file for AI-powered data analysis.")
-        data_file = st.file_uploader("Drop CSV or Excel here",
-                                     type=["csv","xlsx","xls"], key="data_uploader")
+    # ── CSV / Excel ───────────────────────────────────────────────────────────
+    with ing_tab3:
+        st.markdown("Upload a CSV or Excel file for AI-powered data analysis.")
+        data_file = st.file_uploader("Drop CSV or Excel here", type=["csv","xlsx","xls"], key="data_uploader")
         if st.button("📊 Load Data", key="load_data_btn", use_container_width=True):
             if not data_file:
                 st.warning("Please upload a file.")
             else:
                 with st.spinner("Loading…"):
-                    tmp = tempfile.NamedTemporaryFile(delete=False,
-                                                      suffix=Path(data_file.name).suffix)
+                    tmp = tempfile.NamedTemporaryFile(delete=False, suffix=Path(data_file.name).suffix)
                     tmp.write(data_file.read()); tmp.flush()
-                    r = orch.data_agent.load_data(tmp.name)
-                if "Error" not in r:
+                    msg = orch.data_agent.load_data(tmp.name)
+                if "Error" not in msg:
                     st.session_state.data_loaded   = True
                     st.session_state.data_filename = data_file.name
                     if orch.data_agent.df is not None:
                         df = orch.data_agent.df
                         st.session_state.data_shape   = f"{df.shape[0]:,} × {df.shape[1]}"
                         st.session_state.data_columns = list(df.columns)
-                    st.success(r)
+                    st.success(msg)
                     if orch.data_agent.df is not None:
                         st.dataframe(orch.data_agent.df.head(10), use_container_width=True)
                 else:
-                    st.error(r)
+                    st.error(msg)
         elif st.session_state.data_loaded and orch.data_agent.df is not None:
             st.info(f"Loaded: **{st.session_state.data_filename}** · {st.session_state.data_shape}")
             st.dataframe(orch.data_agent.df.head(10), use_container_width=True)
@@ -869,25 +909,40 @@ with tab_viz:
     st.markdown("### 📊 Data Visualizer")
 
     if not st.session_state.data_loaded or orch.data_agent.df is None:
-        st.info("Load a CSV or Excel file in the **Ingest** tab to visualize it here.")
-    elif not PD_OK:
-        st.error("pandas not installed.")
+        st.info("Load a CSV or Excel file in the **Ingest Data** tab to visualize it here.")
     else:
-        df           = orch.data_agent.df
+        import pandas as pd
+        import matplotlib.pyplot as plt
+        import seaborn as sns
+        import io, base64
+
+        df = orch.data_agent.df
         numeric_cols = list(df.select_dtypes(include="number").columns)
         cat_cols     = list(df.select_dtypes(include=["object","category"]).columns)
         all_cols     = list(df.columns)
 
-        st.markdown(f"**{st.session_state.data_filename}** · "
-                    f"{df.shape[0]:,} rows × {df.shape[1]} cols")
+        st.markdown(f"**{st.session_state.data_filename}** · {df.shape[0]:,} rows × {df.shape[1]} cols")
         st.dataframe(df.describe(), use_container_width=True)
-        st.markdown("---")
 
-        viz_type = st.selectbox(
-            "Chart type",
-            ["Bar","Line","Histogram","Scatter","Heatmap (correlation)","Box"],
-            key="viz_type",
-        )
+        st.markdown("---")
+        viz_type = st.selectbox("Chart type", ["Bar","Line","Histogram","Scatter","Heatmap (correlation)","Box"], key="viz_type")
+
+        def dark_fig(figsize=(10,4)):
+            fig, ax = plt.subplots(figsize=figsize)
+            fig.patch.set_facecolor("#0f1117")
+            ax.set_facecolor("#1a1d2e")
+            ax.tick_params(colors="white")
+            ax.xaxis.label.set_color("white"); ax.yaxis.label.set_color("white")
+            ax.title.set_color("white")
+            for sp in ax.spines.values(): sp.set_edgecolor("#333")
+            return fig, ax
+
+        def show_fig(fig):
+            buf = io.BytesIO()
+            fig.savefig(buf, format="png", dpi=150, bbox_inches="tight")
+            buf.seek(0)
+            st.image(buf, use_container_width=True)
+            plt.close(fig)
 
         if viz_type == "Bar":
             c1, c2 = st.columns(2)
@@ -897,9 +952,9 @@ with tab_viz:
                 data = df.groupby(x_col)[y_col].mean().sort_values(ascending=False).head(20)
                 fig, ax = dark_fig()
                 ax.bar(data.index.astype(str), data.values, color="#7c6df2", alpha=0.85)
-                ax.set_xlabel(x_col); ax.set_ylabel(y_col)
-                ax.set_title(f"{y_col} by {x_col}")
-                plt.xticks(rotation=35, ha="right"); show_fig(fig)
+                ax.set_xlabel(x_col); ax.set_ylabel(y_col); ax.set_title(f"{y_col} by {x_col}")
+                plt.xticks(rotation=35, ha="right")
+                show_fig(fig)
 
         elif viz_type == "Line":
             c1, c2 = st.columns(2)
@@ -908,65 +963,62 @@ with tab_viz:
             if st.button("Generate Line Chart", use_container_width=True):
                 fig, ax = dark_fig()
                 ax.plot(df[x_col], df[y_col], color="#06b6d4", linewidth=2)
-                ax.set_xlabel(x_col); ax.set_ylabel(y_col)
-                ax.set_title(f"{y_col} over {x_col}"); show_fig(fig)
+                ax.set_xlabel(x_col); ax.set_ylabel(y_col); ax.set_title(f"{y_col} over {x_col}")
+                show_fig(fig)
 
         elif viz_type == "Histogram":
-            col  = st.selectbox("Column", numeric_cols or all_cols, key="hist_col")
+            col = st.selectbox("Column", numeric_cols or all_cols, key="hist_col")
             bins = st.slider("Bins", 5, 100, 30, key="hist_bins")
             if st.button("Generate Histogram", use_container_width=True):
                 fig, ax = dark_fig()
-                ax.hist(df[col].dropna(), bins=bins, color="#3b82f6",
-                        alpha=0.85, edgecolor="#1e3a5f")
-                ax.set_xlabel(col)
-                ax.set_title(f"Distribution of {col}"); show_fig(fig)
+                ax.hist(df[col].dropna(), bins=bins, color="#3b82f6", alpha=0.85, edgecolor="#1e3a5f")
+                ax.set_xlabel(col); ax.set_title(f"Distribution of {col}")
+                show_fig(fig)
 
         elif viz_type == "Scatter":
             c1, c2, c3 = st.columns(3)
             x_col = c1.selectbox("X", numeric_cols or all_cols, key="sc_x")
             y_col = c2.selectbox("Y", numeric_cols or all_cols, key="sc_y")
-            c_col = c3.selectbox("Color by", ["None"] + cat_cols, key="sc_c")
+            c_col = c3.selectbox("Color by (optional)", ["None"] + cat_cols, key="sc_c")
             if st.button("Generate Scatter", use_container_width=True):
                 fig, ax = dark_fig()
                 if c_col != "None" and c_col in df.columns:
-                    for i, g in enumerate(df[c_col].unique()[:10]):
+                    groups = df[c_col].unique()[:10]
+                    colors = plt.cm.tab10.colors
+                    for i, g in enumerate(groups):
                         sub = df[df[c_col] == g]
-                        ax.scatter(sub[x_col], sub[y_col], label=str(g),
-                                   color=plt.cm.tab10.colors[i % 10], alpha=0.7, s=15)
+                        ax.scatter(sub[x_col], sub[y_col], label=str(g), color=colors[i % 10], alpha=0.7, s=15)
                     ax.legend(fontsize=7, labelcolor="white", framealpha=0.2)
                 else:
                     ax.scatter(df[x_col], df[y_col], color="#f59e0b", alpha=0.6, s=15)
-                ax.set_xlabel(x_col); ax.set_ylabel(y_col)
-                ax.set_title(f"{x_col} vs {y_col}"); show_fig(fig)
+                ax.set_xlabel(x_col); ax.set_ylabel(y_col); ax.set_title(f"{x_col} vs {y_col}")
+                show_fig(fig)
 
         elif viz_type == "Heatmap (correlation)":
             if st.button("Generate Correlation Heatmap", use_container_width=True):
                 if len(numeric_cols) < 2:
                     st.warning("Need at least 2 numeric columns.")
-                elif not SNS_OK:
-                    st.error("seaborn not installed — add it to requirements.txt")
                 else:
                     corr = df[numeric_cols].corr()
-                    sz   = max(6, len(numeric_cols))
-                    fig, ax = plt.subplots(figsize=(sz, sz - 1))
+                    fig, ax = plt.subplots(figsize=(max(6, len(numeric_cols)), max(5, len(numeric_cols)-1)))
                     fig.patch.set_facecolor("#0f1117"); ax.set_facecolor("#1a1d2e")
                     sns.heatmap(corr, ax=ax, cmap="coolwarm", annot=True, fmt=".2f",
                                 linewidths=0.5, linecolor="#1e3a5f",
                                 annot_kws={"size": 8}, cbar_kws={"shrink": 0.8})
                     ax.tick_params(colors="white", labelsize=8)
-                    ax.set_title("Correlation Matrix", color="white"); show_fig(fig)
+                    ax.set_title("Correlation Matrix", color="white")
+                    show_fig(fig)
 
         elif viz_type == "Box":
             c1, c2 = st.columns(2)
             y_col = c1.selectbox("Numeric column", numeric_cols or all_cols, key="box_y")
-            x_col = c2.selectbox("Group by", ["None"] + cat_cols, key="box_x")
+            x_col = c2.selectbox("Group by (optional)", ["None"] + cat_cols, key="box_x")
             if st.button("Generate Box Plot", use_container_width=True):
                 fig, ax = dark_fig()
                 if x_col != "None" and x_col in df.columns:
-                    uniq   = df[x_col].unique()[:15]
-                    groups = [df[df[x_col] == g][y_col].dropna().values for g in uniq]
-                    bp = ax.boxplot(groups, labels=[str(g) for g in uniq],
-                                   patch_artist=True,
+                    groups = [df[df[x_col] == g][y_col].dropna().values for g in df[x_col].unique()[:15]]
+                    labels = [str(g) for g in df[x_col].unique()[:15]]
+                    bp = ax.boxplot(groups, labels=labels, patch_artist=True,
                                    medianprops={"color":"#4ade80","linewidth":2})
                     for patch in bp["boxes"]:
                         patch.set_facecolor("#1e3a5f"); patch.set_alpha(0.8)
@@ -974,42 +1026,41 @@ with tab_viz:
                 else:
                     ax.boxplot(df[y_col].dropna().values, patch_artist=True,
                                medianprops={"color":"#4ade80","linewidth":2})
-                ax.set_ylabel(y_col)
-                ax.set_title(f"Box Plot: {y_col}"); show_fig(fig)
+                ax.set_ylabel(y_col); ax.set_title(f"Box Plot: {y_col}")
+                show_fig(fig)
 
         st.markdown("---")
         st.markdown("**🤖 AI Chart Generator**")
-        ai_q = st.text_input("Describe a chart",
-                             placeholder="e.g. bar chart of top 10 products by sales",
-                             key="ai_chart_input")
+        ai_chart_q = st.text_input(
+            "Describe a chart you want (AI will generate it)",
+            placeholder="e.g. show me a bar chart of top 10 products by sales",
+            key="ai_chart_input",
+        )
         if st.button("🎨 Generate with AI", key="ai_chart_btn", use_container_width=True):
-            if ai_q.strip():
-                with st.spinner("Generating chart…"):
-                    r = orch.data_agent.analyze(ai_q)
-                st.markdown(r["answer"])
-                if r.get("chart"):
-                    st.image(base64.b64decode(r["chart"]), use_container_width=True)
+            if ai_chart_q.strip():
+                with st.spinner("AI is generating your chart…"):
+                    result = orch.data_agent.analyze(ai_chart_q)
+                st.markdown(result["answer"])
+                if result.get("chart"):
+                    st.image(base64.b64decode(result["chart"]), use_container_width=True)
             else:
-                st.warning("Please describe the chart.")
+                st.warning("Please describe the chart you want.")
 
 
 # ════════════════════════════════════════════════════════════
-# TAB 4 — VECTOR DB  (uses st.radio — NO nested st.tabs)
+# TAB 4 — VECTOR DB SHOWCASE
 # ════════════════════════════════════════════════════════════
 with tab_vdb:
+    from vectordb_showcase import render_vectordb_showcase, render_routing_log
+
     st.markdown("### ◈ Vector DB Showcase")
-    st.markdown("Inspect indexed chunks, embeddings, and similarity scores in real time.")
-
-    vdb_choice = st.radio(
-        "View",
-        ["📄 Document RAG", "🎬 YouTube RAG", "⟳ Routing Log"],
-        horizontal=True,
-        key="vdb_radio",
-        label_visibility="collapsed",
+    st.markdown(
+        "Inspect indexed chunks, embedding metadata, and retrieval similarity scores.",
     )
-    st.markdown("---")
 
-    if vdb_choice == "📄 Document RAG":
+    vdb_tab1, vdb_tab2, vdb_tab3 = st.tabs(["📄 Document RAG", "🎬 YouTube RAG", "⟳ Routing Log"])
+
+    with vdb_tab1:
         if st.session_state.rag_ingested:
             vd = orch.rag.get_showcase_data()
             if vd.get("total_chunks", 0) > 0:
@@ -1018,13 +1069,13 @@ with tab_vdb:
                 st.info("Documents ingested but no chunks found. Try re-ingesting.")
         else:
             st.markdown("""
-<div style="text-align:center;padding:2.5rem;opacity:0.35;
-  font-family:'Space Mono',monospace;font-size:0.75rem;color:#475569">
-  ◈<br><br>Upload documents in <b>Ingest → Documents</b><br>
+<div style="text-align:center;padding:2.5rem 1rem;color:#9ca3af;font-family:'Space Mono',monospace;font-size:0.75rem">
+  ◈<br><br>
+  Upload documents in <b>Ingest Data → Documents</b><br>
   then ask a question to see retrieval in action.
 </div>""", unsafe_allow_html=True)
 
-    elif vdb_choice == "🎬 YouTube RAG":
+    with vdb_tab2:
         if st.session_state.video_ingested and orch.video_rag.is_ready():
             vd = orch.video_rag.get_showcase_data()
             if vd.get("total_chunks", 0) > 0:
@@ -1033,28 +1084,29 @@ with tab_vdb:
                 st.info("Video loaded but no chunks indexed.")
         else:
             st.markdown("""
-<div style="text-align:center;padding:2.5rem;opacity:0.35;
-  font-family:'Space Mono',monospace;font-size:0.75rem;color:#475569">
-  🎬<br><br>Load a YouTube video in <b>Ingest → YouTube</b><br>
+<div style="text-align:center;padding:2.5rem 1rem;color:#9ca3af;font-family:'Space Mono',monospace;font-size:0.75rem">
+  🎬<br><br>
+  Load a YouTube video in <b>Ingest Data → YouTube</b><br>
   then ask a question to see timestamps and similarity scores.
 </div>""", unsafe_allow_html=True)
 
-    elif vdb_choice == "⟳ Routing Log":
+    with vdb_tab3:
         log = orch.get_routing_log()
         if log:
-            st.markdown("Every routed message appears here with method and confidence.")
+            st.markdown("Every message routed through the orchestrator appears here.")
             render_routing_log(log)
             st.markdown("---")
             methods = [e["method"] for e in log]
+            st.markdown("**Routing method breakdown:**")
             c1, c2, c3 = st.columns(3)
-            c1.metric("⚡ Regex (fast)",     methods.count("regex"))
-            c2.metric("🧠 LLM classify",     methods.count("llm"))
-            c3.metric("🔄 Context override", methods.count("context_override"))
+            c1.metric("Regex (fast)", methods.count("regex"))
+            c2.metric("LLM classify", methods.count("llm"))
+            c3.metric("Context override", methods.count("context_override"))
         else:
             st.markdown("""
-<div style="text-align:center;padding:2.5rem;opacity:0.35;
-  font-family:'Space Mono',monospace;font-size:0.75rem;color:#475569">
-  ⟳<br><br>Use <b>Auto-Route</b> mode and send a message<br>
+<div style="text-align:center;padding:2.5rem 1rem;color:#9ca3af;font-family:'Space Mono',monospace;font-size:0.75rem">
+  ⟳<br><br>
+  Send a message using <b>Auto-Route</b> mode<br>
   to see how the orchestrator routes your queries.
 </div>""", unsafe_allow_html=True)
 
@@ -1067,9 +1119,9 @@ with tab_about:
 ### ⬡ NexusRAG — Multi-Agent Intelligence Platform
 
 **Stack**
-- **LLM**: Google Gemini (`google-generativeai`)
+- **LLM**: Google Gemini (via `google-generativeai`)
 - **Embeddings**: `sentence-transformers/all-MiniLM-L6-v2` (384d, CPU)
-- **Vector Store**: FAISS `IndexFlatL2` + hybrid BM25 rerank
+- **Vector Store**: FAISS IndexFlatL2 with hybrid rerank
 - **Framework**: LangChain · Streamlit
 
 ---
@@ -1079,7 +1131,7 @@ with tab_about:
 | Agent | Capability |
 |-------|-----------|
 | 🤖 Chatbot | Conversational AI with rolling memory (20 turns) |
-| 📄 Document RAG | Dense + keyword rerank · contextual compression · grounded answers |
+| 📄 Document RAG | Hybrid retrieval + contextual compression + grounded answers |
 | 🎬 YouTube RAG | Transcript fetch → chunk → semantic Q&A with timestamps |
 | 📊 Data Analyst | Pandas profiling + AI chart spec generation |
 | 💻 Code Generator | Multi-language code gen with inline comments |
@@ -1090,29 +1142,31 @@ with tab_about:
 
 **RAG Pipeline**
 ```
-Upload → Load → Chunk (800 chars, 150 overlap)
+Upload → Load docs → Chunk (800 chars, 150 overlap)
        → Embed (MiniLM-L6-v2) → FAISS index
-Query  → Dense search (k=6) → BM25 rerank → Top 5
-       → LLM contextual compression → Grounded answer
+Query  → Dense search (k=6) → Keyword rerank → Top 5
+       → Contextual compression (LLM) → Grounded answer
 ```
 
-**Orchestrator**
+**Orchestrator routing**
 ```
-Message → Regex fast-path (zero LLM cost)
-        → LLM classifier + confidence score (0–1)
-        → Context override (doc/video/data loaded?)
-        → Dispatch → Agent result + routing metadata
+Message → Regex fast-path (instant, no LLM cost)
+        → LLM classifier (returns agent + confidence 0-1)
+        → Context override (if docs/video/data loaded)
+        → Dispatch → Agent → Result + routing metadata
 ```
 
 ---
 
-**`.streamlit/secrets.toml`**
+**Secrets (`.streamlit/secrets.toml`)**
 ```toml
 GEMINI_API_KEY = "your-key-here"
 GEMINI_MODEL   = "gemini-2.0-flash"
 ```
 
-**Keyboard shortcuts**
+---
+
+**Keyboard Shortcuts**
 - `Enter` — Send message
 - `Shift + Enter` — New line in message box
 """)
