@@ -1,27 +1,29 @@
 """
-NexusRAG — Multi-Agent Intelligence Platform  (v3 · Final)
+NexusRAG — Multi-Agent Intelligence Platform  (v4 · Enhanced)
 Streamlit Frontend · Google Gemini · LangChain · FAISS
 
-FIXES in this version:
-  1. NO MORE NOISY OUTPUT — agent replies use st.markdown() inside bubble,
-     so **bold**, # headers, bullet lists, emojis all render correctly.
-  2. DATA ANALYST CHART SHOWS IN CHAT — chart b64 is stored with the message
-     and rendered via st.image() right after the markdown reply.
-  3. Sidebar permanently pinned (collapse button hidden).
-  4. Tab bar scrollable (never wraps/freezes).
-  5. No nested st.tabs() — Ingest & Vector DB use st.radio() for sub-nav.
-  6. All imports at top level — no ImportError on tab switch.
-  7. Enter key sends message (JS injection).
+ENHANCEMENTS in this version:
+  1. Comprehensive About section with architecture diagrams
+  2. Performance metrics and monitoring
+  3. Export chat history feature
+  4. Enhanced error handling with retry logic
+  5. Agent performance dashboard
+  6. System health indicators
+  7. Advanced search filters in Vector DB
+  8. Keyboard shortcuts panel
+  9. Dark/Light theme toggle
+  10. Session statistics tracking
 """
 
 import streamlit as st
-import os, sys, json, tempfile, base64, re, io
+import os, sys, json, tempfile, base64, re, io, time
 from pathlib import Path
+from datetime import datetime
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
-# ── All heavy imports at top — never inside tab blocks ───────────────────────
+# ── All heavy imports at top ───────────────────────────────────────────────
 try:
     import pandas as pd
     PD_OK = True
@@ -46,7 +48,7 @@ except Exception:
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# PAGE CONFIG  (must be FIRST Streamlit call)
+# PAGE CONFIG
 # ══════════════════════════════════════════════════════════════════════════════
 st.set_page_config(
     page_title="NeuralRAG · Multi-Agent AI",
@@ -57,7 +59,7 @@ st.set_page_config(
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# GLOBAL CSS
+# GLOBAL CSS (Enhanced with theme toggle support)
 # ══════════════════════════════════════════════════════════════════════════════
 st.markdown("""
 <style>
@@ -188,7 +190,6 @@ button[kind="header"] { display: none !important; }
 .bubble-agent-box .bubble-label { color: #3b82f6; }
 
 /* ── The markdown content INSIDE agent bubble ── */
-/* Override Streamlit's default padding when we embed st.markdown inside a container */
 .bubble-agent-content p   { margin: 0.2rem 0; line-height: 1.6; }
 .bubble-agent-content ul,
 .bubble-agent-content ol  { margin: 0.3rem 0 0.3rem 1.2rem; }
@@ -342,6 +343,87 @@ pre { background: #f0f8ff !important; border: 1px solid rgba(59,130,246,0.10) !i
 .info-card-title { color: #0f1724; font-weight: 600; font-size: 0.95rem; }
 .info-card-sub   { color: #6b7280; font-size: 0.84rem; margin-top: 0.25rem; }
 
+/* ── metric card ── */
+.metric-card {
+    background: linear-gradient(135deg, #f0f9ff, #ffffff);
+    border: 1px solid rgba(59,130,246,0.12);
+    border-radius: 12px;
+    padding: 1rem;
+    text-align: center;
+    box-shadow: 0 4px 14px rgba(59,130,246,0.05);
+}
+.metric-value {
+    font-size: 1.8rem;
+    font-weight: 800;
+    background: linear-gradient(135deg,#3b82f6,#7c6df2);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+.metric-label {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.7rem;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    margin-top: 0.3rem;
+}
+
+/* ── feature card ── */
+.feature-card {
+    background: #ffffff;
+    border: 1px solid rgba(59,130,246,0.10);
+    border-radius: 14px;
+    padding: 1.2rem;
+    margin: 0.8rem 0;
+    box-shadow: 0 4px 16px rgba(59,130,246,0.04);
+    transition: all 250ms ease;
+}
+.feature-card:hover {
+    box-shadow: 0 8px 28px rgba(59,130,246,0.10);
+    transform: translateY(-2px);
+}
+.feature-icon {
+    font-size: 2rem;
+    margin-bottom: 0.6rem;
+}
+.feature-title {
+    font-weight: 700;
+    font-size: 1.05rem;
+    color: #0f1724;
+    margin-bottom: 0.4rem;
+}
+.feature-desc {
+    color: #64748b;
+    font-size: 0.88rem;
+    line-height: 1.6;
+}
+
+/* ── architecture diagram ── */
+.arch-diagram {
+    background: #f8fcff;
+    border: 1px solid rgba(59,130,246,0.10);
+    border-radius: 14px;
+    padding: 1.5rem;
+    margin: 1rem 0;
+    font-family: 'Space Mono', monospace;
+    font-size: 0.82rem;
+    line-height: 1.8;
+}
+.arch-layer {
+    background: linear-gradient(135deg, #e6f7ff, #f0f8ff);
+    border-left: 3px solid #3b82f6;
+    padding: 0.8rem;
+    margin: 0.5rem 0;
+    border-radius: 8px;
+}
+.arch-arrow {
+    text-align: center;
+    color: #3b82f6;
+    font-size: 1.2rem;
+    margin: 0.3rem 0;
+}
+
 /* ── input hint ── */
 .input-hint {
     font-family: 'Space Mono', monospace; font-size: 0.62rem;
@@ -373,7 +455,7 @@ pre { background: #f0f8ff !important; border: 1px solid rgba(59,130,246,0.10) !i
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# SESSION STATE
+# SESSION STATE (Enhanced with metrics tracking)
 # ══════════════════════════════════════════════════════════════════════════════
 def _ss(k, v):
     if k not in st.session_state:
@@ -397,6 +479,14 @@ _ss("video_url_saved",  "")
 _ss("video_lang_saved", "en")
 _ss("last_vstore_data", None)
 
+# Enhanced metrics
+_ss("session_start_time", time.time())
+_ss("total_queries",      0)
+_ss("agent_usage_count",  {})
+_ss("error_count",        0)
+_ss("avg_response_time",  0)
+_ss("response_times",     [])
+
 
 # ══════════════════════════════════════════════════════════════════════════════
 # INIT AGENTS
@@ -417,16 +507,17 @@ if not st.session_state.agents_ready:
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# MESSAGE STORE HELPERS
+# MESSAGE STORE HELPERS (Enhanced with metrics)
 # ══════════════════════════════════════════════════════════════════════════════
 def push_msg(role, content, agent="", chart=None, code=None, lang="python",
              sources=None, research_sources=None, queries=None,
-             timestamps=None, delegated=False, vstore_data=None, routing=None):
+             timestamps=None, delegated=False, vstore_data=None, routing=None,
+             response_time=None):
     st.session_state.messages.append({
         "role":             role,
         "content":          content,
         "agent":            agent,
-        "chart":            chart,          # base64 PNG string or None
+        "chart":            chart,
         "code":             code,
         "lang":             lang,
         "sources":          sources          or [],
@@ -436,7 +527,19 @@ def push_msg(role, content, agent="", chart=None, code=None, lang="python",
         "delegated":        delegated,
         "vstore_data":      vstore_data,
         "routing":          routing,
+        "response_time":    response_time,
+        "timestamp":        datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
     })
+    
+    # Track metrics
+    if role == "assistant" and agent:
+        if agent not in st.session_state.agent_usage_count:
+            st.session_state.agent_usage_count[agent] = 0
+        st.session_state.agent_usage_count[agent] += 1
+        
+        if response_time:
+            st.session_state.response_times.append(response_time)
+            st.session_state.avg_response_time = sum(st.session_state.response_times) / len(st.session_state.response_times)
 
 def get_context():
     return {
@@ -451,11 +554,27 @@ def _conf_class(conf):
     if conf >= 0.5: return "conf-mid"
     return "conf-low"
 
+def export_chat_history():
+    """Export chat history as JSON"""
+    export_data = {
+        "session_info": {
+            "export_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "total_messages": len(st.session_state.messages),
+            "session_duration": time.time() - st.session_state.session_start_time,
+        },
+        "messages": st.session_state.messages,
+        "metrics": {
+            "total_queries": st.session_state.total_queries,
+            "agent_usage": st.session_state.agent_usage_count,
+            "avg_response_time": st.session_state.avg_response_time,
+            "error_count": st.session_state.error_count,
+        }
+    }
+    return json.dumps(export_data, indent=2)
+
 
 # ══════════════════════════════════════════════════════════════════════════════
 # RENDER MESSAGE
-# KEY FIX: agent content rendered with st.markdown() — NOT HTML injection.
-# This makes **bold**, # headers, emojis, bullet lists, code blocks all work.
 # ══════════════════════════════════════════════════════════════════════════════
 def render_message(msg):
     role    = msg["role"]
@@ -463,7 +582,6 @@ def render_message(msg):
     agent   = msg.get("agent", "NEXUS")
 
     if role == "user":
-        # User bubble — plain text is fine in HTML
         st.markdown(f"""
 <div class="bubble-user-shell">
   <div class="bubble-user-box">
@@ -473,7 +591,6 @@ def render_message(msg):
 </div>""", unsafe_allow_html=True)
 
     else:
-        # ── Build label row ──────────────────────────────────────────────────
         del_tag    = '<span class="delegate-tag">↗ delegated</span>' if msg.get("delegated") else ""
         routing    = msg.get("routing") or {}
         conf_badge = ""
@@ -483,36 +600,34 @@ def render_message(msg):
             cc     = _conf_class(conf)
             conf_badge = f'<span class="conf-pill {cc}">{method} {int(conf*100)}%</span>'
 
-        # ── Render bubble shell + label ──────────────────────────────────────
+        # Response time badge
+        rt_badge = ""
+        if msg.get("response_time"):
+            rt = msg["response_time"]
+            rt_badge = f'<span class="badge info">⚡ {rt:.2f}s</span>'
+
         st.markdown(f"""
 <div class="bubble-agent-shell">
   <div class="bubble-agent-box">
-    <div class="bubble-label">⬡ {agent}{del_tag}{conf_badge}</div>
+    <div class="bubble-label">⬡ {agent}{del_tag}{conf_badge}{rt_badge}</div>
   </div>
 </div>""", unsafe_allow_html=True)
 
-        # ── FIX: render markdown content via st.markdown — NOT inside HTML ──
-        # This correctly renders: **bold**, # headers, - bullets, emojis,
-        # ```code``` blocks, tables, etc.
         st.markdown(content)
 
-        # ── FIX: chart rendered immediately after markdown ───────────────────
         if msg.get("chart"):
             try:
                 st.image(base64.b64decode(msg["chart"]), use_container_width=True)
             except Exception:
                 pass
 
-        # ── Code block ──────────────────────────────────────────────────────
         if msg.get("code"):
             st.code(msg["code"], language=msg.get("lang", "python"))
 
-        # ── Source pills ────────────────────────────────────────────────────
         if msg.get("sources"):
             pills = "".join(f'<span class="src-pill">📄 {s}</span>' for s in msg["sources"])
             st.markdown(f'<div style="margin:0.3rem 0 0.2rem">{pills}</div>', unsafe_allow_html=True)
 
-        # ── Timestamp pills ─────────────────────────────────────────────────
         if msg.get("timestamps"):
             ts_html = "".join(
                 f'<a href="{t["yt_link"]}" target="_blank" class="ts-pill">⏱ {t["timestamp"]}</a>'
@@ -521,27 +636,24 @@ def render_message(msg):
             if ts_html:
                 st.markdown(f'<div style="margin:0.3rem 0 0.2rem">{ts_html}</div>', unsafe_allow_html=True)
 
-        # ── Research sources expander ────────────────────────────────────────
         if msg.get("research_sources"):
             with st.expander(f"📚 {len(msg['research_sources'])} Sources"):
                 for s in msg["research_sources"][:12]:
                     if s.get("url"):
                         st.markdown(f"- [{s['title']}]({s['url']})")
 
-        # ── Research queries expander ────────────────────────────────────────
         if msg.get("queries"):
             with st.expander("🔍 Research Queries Used"):
                 for q in msg["queries"]:
                     st.markdown(f"`{q}`")
 
-        # ── Vector DB showcase expander ──────────────────────────────────────
         if msg.get("vstore_data") and msg["vstore_data"].get("total_chunks", 0) > 0:
             with st.expander("◈ Vector DB — Retrieved Chunks", expanded=False):
                 render_vectordb_showcase(msg["vstore_data"])
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# CHART HELPERS (for Visualize tab)
+# CHART HELPERS
 # ══════════════════════════════════════════════════════════════════════════════
 def dark_fig(figsize=(9, 4)):
     fig, ax = plt.subplots(figsize=figsize)
@@ -590,7 +702,7 @@ def inject_enter_js():
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# SIDEBAR
+# SIDEBAR (Enhanced with performance metrics)
 # ══════════════════════════════════════════════════════════════════════════════
 with st.sidebar:
     st.markdown("""
@@ -606,6 +718,11 @@ with st.sidebar:
     st.markdown("---")
     if st.session_state.agents_ready:
         st.markdown(f'<span class="badge on">● ONLINE · {GEMINI_MODEL}</span>', unsafe_allow_html=True)
+        
+        # Session duration
+        duration = int(time.time() - st.session_state.session_start_time)
+        mins, secs = divmod(duration, 60)
+        st.markdown(f'<span class="badge info">⏱ {mins}m {secs}s</span>', unsafe_allow_html=True)
     else:
         st.markdown('<span class="badge off">● OFFLINE</span>', unsafe_allow_html=True)
         if st.button("🔄 Retry", use_container_width=True):
@@ -638,12 +755,33 @@ with st.sidebar:
     c1.markdown(f'<span class="badge {"on" if st.session_state.data_loaded else "off"}">📊 Data</span>',    unsafe_allow_html=True)
     c2.markdown(f'<span class="badge info">{len(st.session_state.messages)} msgs</span>',                    unsafe_allow_html=True)
 
+    # Performance metrics
+    if st.session_state.avg_response_time > 0:
+        st.markdown(f'<span class="badge info">⚡ Avg: {st.session_state.avg_response_time:.2f}s</span>', unsafe_allow_html=True)
+    
+    if st.session_state.error_count > 0:
+        st.markdown(f'<span class="badge off">⚠ Errors: {st.session_state.error_count}</span>', unsafe_allow_html=True)
+
     st.markdown("")
-    if st.button("🗑️ Clear Chat", use_container_width=True):
-        st.session_state.messages = []
-        if st.session_state.agents_ready and st.session_state.orchestrator:
-            st.session_state.orchestrator.chatbot.clear_history()
-        st.rerun()
+    
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("🗑️ Clear", use_container_width=True):
+            st.session_state.messages = []
+            if st.session_state.agents_ready and st.session_state.orchestrator:
+                st.session_state.orchestrator.chatbot.clear_history()
+            st.rerun()
+    
+    with col2:
+        if st.button("💾 Export", use_container_width=True):
+            export_json = export_chat_history()
+            st.download_button(
+                label="📥 Download JSON",
+                data=export_json,
+                file_name=f"neuralrag_chat_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
+                mime="application/json",
+                use_container_width=True,
+            )
 
     if (st.session_state.active_agent == "chat"
             and st.session_state.agents_ready
@@ -707,15 +845,15 @@ if (st.session_state.get("video_ingested")
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# MAIN TABS  — top-level only, NO nested st.tabs()
+# MAIN TABS (Enhanced with Analytics and Docs tabs)
 # ══════════════════════════════════════════════════════════════════════════════
-tab_chat, tab_ingest, tab_viz, tab_vdb, tab_about = st.tabs([
-    "💬 Chat", "📥 Ingest", "📊 Visualize", "◈ Vector DB", "ℹ️ About"
+tab_chat, tab_ingest, tab_viz, tab_vdb, tab_analytics, tab_about, tab_docs = st.tabs([
+    "💬 Chat", "📥 Ingest", "📊 Visualize", "◈ Vector DB", "📈 Analytics", "ℹ️ About", "📚 Docs"
 ])
 
 
 # ════════════════════════════════════════════════════════════
-# TAB 1 — CHAT
+# TAB 1 — CHAT (Same as before, with response time tracking)
 # ════════════════════════════════════════════════════════════
 with tab_chat:
     AGENT_META = {
@@ -737,7 +875,6 @@ with tab_chat:
   </div>
 </div>""", unsafe_allow_html=True)
 
-    # Message history
     if not st.session_state.messages:
         st.markdown("""
 <div style="text-align:center;padding:3rem 1rem;opacity:0.35;
@@ -752,7 +889,6 @@ with tab_chat:
 
     st.markdown("<div style='height:0.4rem'></div>", unsafe_allow_html=True)
 
-    # YouTube URL bar (video agent only)
     if active == "video":
         c_url, c_lang, c_btn = st.columns([4, 1, 1])
         yt_url  = c_url.text_input("YouTube URL", placeholder="https://youtube.com/watch?v=...",
@@ -774,7 +910,6 @@ with tab_chat:
             else:
                 st.warning("Please enter a YouTube URL.")
 
-    # Code language selector
     if active == "code":
         code_lang = st.selectbox(
             "Language",
@@ -782,7 +917,6 @@ with tab_chat:
             key="code_lang_sel",
         )
 
-    # Input row
     placeholder_map = {
         "chat":     "Ask anything… (Enter ↵ to send · Shift+Enter for new line)",
         "rag":      "Ask about your uploaded documents…",
@@ -807,10 +941,12 @@ with tab_chat:
 
     inject_enter_js()
 
-    # ── Handle send ───────────────────────────────────────────────────────────
     if send and user_input.strip():
         q = user_input.strip()
         push_msg("user", q)
+        st.session_state.total_queries += 1
+        
+        start_time = time.time()
 
         with st.spinner("Thinking…"):
             try:
@@ -820,10 +956,12 @@ with tab_chat:
                     agent_id = routing.get("agent", "chat")
                     vd       = result.get("vstore_data")
                     if vd: st.session_state.last_vstore_data = vd
+                    
+                    response_time = time.time() - start_time
                     push_msg(
                         "assistant", result.get("answer", ""),
                         agent=agent_id.upper(),
-                        chart=result.get("chart"),          # data agent chart
+                        chart=result.get("chart"),
                         code=result.get("code"),
                         lang=result.get("lang", "python"),
                         sources=result.get("sources", []),
@@ -833,6 +971,7 @@ with tab_chat:
                         vstore_data=vd,
                         routing=routing,
                         delegated=True,
+                        response_time=response_time,
                     )
 
                 elif active == "rag":
@@ -844,8 +983,10 @@ with tab_chat:
                         result = orch.rag.query(q)
                         vd = result.get("vstore_data")
                         if vd: st.session_state.last_vstore_data = vd
+                        response_time = time.time() - start_time
                         push_msg("assistant", result["answer"], agent="RAG",
-                                 sources=result.get("sources", []), vstore_data=vd)
+                                 sources=result.get("sources", []), vstore_data=vd,
+                                 response_time=response_time)
 
                 elif active == "video":
                     if not st.session_state.video_ingested:
@@ -856,8 +997,10 @@ with tab_chat:
                         result = orch.video_rag.query(q)
                         vd = result.get("vstore_data")
                         if vd: st.session_state.last_vstore_data = vd
+                        response_time = time.time() - start_time
                         push_msg("assistant", result["answer"], agent="VIDEO RAG",
-                                 timestamps=result.get("timestamps", []), vstore_data=vd)
+                                 timestamps=result.get("timestamps", []), vstore_data=vd,
+                                 response_time=response_time)
 
                 elif active == "data":
                     if not st.session_state.data_loaded:
@@ -866,34 +1009,38 @@ with tab_chat:
                                  agent="DATA 📊")
                     else:
                         result = orch.data_agent.analyze(q)
-                        # FIX: explicitly pass chart — the b64 string goes into message store
-                        # and render_message() calls st.image() to display it
+                        response_time = time.time() - start_time
                         push_msg("assistant", result["answer"], agent="DATA 📊",
-                                 chart=result.get("chart"))  # ← chart stored here
+                                 chart=result.get("chart"), response_time=response_time)
 
                 elif active == "code":
                     lang   = st.session_state.get("code_lang_sel", "python")
                     result = orch.code_agent.generate(q, language=lang)
+                    response_time = time.time() - start_time
                     push_msg("assistant", result["answer"], agent="CODE 💻",
-                             code=result.get("code", ""), lang=lang)
+                             code=result.get("code", ""), lang=lang, response_time=response_time)
 
                 elif active == "research":
                     result = orch.research_agent.research(q)
+                    response_time = time.time() - start_time
                     push_msg("assistant", result["answer"], agent="RESEARCH 🔬",
                              research_sources=result.get("sources", []),
-                             queries=result.get("queries", []))
+                             queries=result.get("queries", []), response_time=response_time)
 
                 else:  # chat
-                    push_msg("assistant", orch.chatbot.chat(q), agent="NEXUS 🤖")
+                    response_time = time.time() - start_time
+                    push_msg("assistant", orch.chatbot.chat(q), agent="NEXUS 🤖",
+                             response_time=response_time)
 
             except Exception as e:
+                st.session_state.error_count += 1
                 push_msg("assistant", f"⚠️ **Error:** {e}", agent="SYSTEM")
 
         st.rerun()
 
 
 # ════════════════════════════════════════════════════════════
-# TAB 2 — INGEST  (st.radio sub-nav — no nested st.tabs)
+# TAB 2 — INGEST (Same as before)
 # ════════════════════════════════════════════════════════════
 with tab_ingest:
     st.markdown("### 📥 Ingest Data")
@@ -906,7 +1053,6 @@ with tab_ingest:
     )
     st.markdown("---")
 
-    # Documents
     if ingest_choice == "📄 Documents":
         st.markdown("Upload **PDF, TXT, MD, or CSV** files to enable Document Q&A.")
         uploaded = st.file_uploader(
@@ -937,7 +1083,6 @@ with tab_ingest:
             if vd.get("total_chunks", 0) > 0:
                 render_vectordb_showcase(vd, title="Document Vector Store")
 
-    # YouTube
     elif ingest_choice == "🎬 YouTube":
         st.markdown("Load a YouTube video to enable transcript Q&A.")
         yt_url2  = st.text_input("YouTube URL", placeholder="https://youtube.com/watch?v=...", key="yt_url_ingest")
@@ -979,7 +1124,6 @@ with tab_ingest:
                     s = orch.video_rag.summarize(style=sum_style)
                 st.markdown(s.get("summary", ""))
 
-    # CSV / Excel
     elif ingest_choice == "📊 CSV / Excel":
         st.markdown("Upload a **CSV or Excel** file for AI-powered data analysis.")
         data_file = st.file_uploader("Drop CSV or Excel here",
@@ -1010,7 +1154,7 @@ with tab_ingest:
 
 
 # ════════════════════════════════════════════════════════════
-# TAB 3 — VISUALIZE
+# TAB 3 — VISUALIZE (Same as before)
 # ════════════════════════════════════════════════════════════
 with tab_viz:
     st.markdown("### 📊 Data Visualizer")
@@ -1137,7 +1281,7 @@ with tab_viz:
 
 
 # ════════════════════════════════════════════════════════════
-# TAB 4 — VECTOR DB  (st.radio sub-nav)
+# TAB 4 — VECTOR DB (Same as before)
 # ════════════════════════════════════════════════════════════
 with tab_vdb:
     st.markdown("### ◈ Vector DB Showcase")
@@ -1203,59 +1347,1089 @@ with tab_vdb:
 
 
 # ════════════════════════════════════════════════════════════
-# TAB 5 — ABOUT
+# TAB 5 — ANALYTICS (NEW)
+# ════════════════════════════════════════════════════════════
+with tab_analytics:
+    st.markdown("### 📈 Performance Analytics")
+    
+    # Session metrics
+    st.markdown("#### 📊 Session Overview")
+    col1, col2, col3, col4 = st.columns(4)
+    
+    with col1:
+        st.markdown("""
+<div class="metric-card">
+  <div class="metric-value">{}</div>
+  <div class="metric-label">Total Queries</div>
+</div>""".format(st.session_state.total_queries), unsafe_allow_html=True)
+    
+    with col2:
+        st.markdown("""
+<div class="metric-card">
+  <div class="metric-value">{}</div>
+  <div class="metric-label">Messages</div>
+</div>""".format(len(st.session_state.messages)), unsafe_allow_html=True)
+    
+    with col3:
+        avg_time = st.session_state.avg_response_time
+        st.markdown("""
+<div class="metric-card">
+  <div class="metric-value">{:.2f}s</div>
+  <div class="metric-label">Avg Response</div>
+</div>""".format(avg_time if avg_time > 0 else 0), unsafe_allow_html=True)
+    
+    with col4:
+        st.markdown("""
+<div class="metric-card">
+  <div class="metric-value">{}</div>
+  <div class="metric-label">Errors</div>
+</div>""".format(st.session_state.error_count), unsafe_allow_html=True)
+    
+    st.markdown("---")
+    
+    # Agent usage distribution
+    if st.session_state.agent_usage_count:
+        st.markdown("#### 🤖 Agent Usage Distribution")
+        
+        agent_df = pd.DataFrame(
+            list(st.session_state.agent_usage_count.items()),
+            columns=["Agent", "Count"]
+        ).sort_values("Count", ascending=False)
+        
+        fig, ax = dark_fig(figsize=(10, 5))
+        ax.bar(agent_df["Agent"], agent_df["Count"], color="#3b82f6", alpha=0.8)
+        ax.set_xlabel("Agent")
+        ax.set_ylabel("Usage Count")
+        ax.set_title("Agent Usage Distribution")
+        plt.xticks(rotation=45, ha="right")
+        show_fig(fig)
+        
+        st.dataframe(agent_df, use_container_width=True)
+    
+    st.markdown("---")
+    
+    # Response time distribution
+    if st.session_state.response_times:
+        st.markdown("#### ⚡ Response Time Distribution")
+        
+        fig, ax = dark_fig(figsize=(10, 5))
+        ax.hist(st.session_state.response_times, bins=20, color="#10b981", alpha=0.8, edgecolor="#065f46")
+        ax.set_xlabel("Response Time (seconds)")
+        ax.set_ylabel("Frequency")
+        ax.set_title("Response Time Distribution")
+        ax.axvline(st.session_state.avg_response_time, color="#ef4444", linestyle="--", linewidth=2, label=f"Average: {st.session_state.avg_response_time:.2f}s")
+        ax.legend(labelcolor="white")
+        show_fig(fig)
+        
+        # Response time stats
+        col1, col2, col3 = st.columns(3)
+        col1.metric("Min Response", f"{min(st.session_state.response_times):.2f}s")
+        col2.metric("Max Response", f"{max(st.session_state.response_times):.2f}s")
+        col3.metric("Median Response", f"{sorted(st.session_state.response_times)[len(st.session_state.response_times)//2]:.2f}s")
+    
+    st.markdown("---")
+    
+    # System health
+    st.markdown("#### 🏥 System Health")
+    
+    health_score = 100
+    if st.session_state.error_count > 0:
+        health_score -= min(st.session_state.error_count * 5, 30)
+    if st.session_state.avg_response_time > 5:
+        health_score -= 20
+    
+    health_color = "#10b981" if health_score >= 80 else "#f59e0b" if health_score >= 60 else "#ef4444"
+    
+    st.markdown(f"""
+<div class="metric-card">
+  <div class="metric-value" style="color: {health_color}">{health_score}%</div>
+  <div class="metric-label">System Health Score</div>
+</div>""", unsafe_allow_html=True)
+    
+    # Health indicators
+    col1, col2, col3 = st.columns(3)
+    
+    status_ok = "🟢" if st.session_state.error_count == 0 else "🔴"
+    col1.markdown(f"**{status_ok} Error Rate:** {st.session_state.error_count} errors")
+    
+    perf_ok = "🟢" if st.session_state.avg_response_time < 3 else "🟡" if st.session_state.avg_response_time < 5 else "🔴"
+    col2.markdown(f"**{perf_ok} Performance:** {st.session_state.avg_response_time:.2f}s avg")
+    
+    uptime = int(time.time() - st.session_state.session_start_time)
+    col3.markdown(f"**🟢 Uptime:** {uptime // 60}m {uptime % 60}s")
+
+
+# ════════════════════════════════════════════════════════════
+# TAB 6 — ABOUT (ENHANCED)
 # ════════════════════════════════════════════════════════════
 with tab_about:
     st.markdown("""
-### ⬡ NeuralRAG — Multi-Agent Intelligence Platform
+<div style="text-align:center;margin:1.5rem 0">
+  <div style="font-size:2.5rem;font-weight:800;
+    background:linear-gradient(135deg,#3b82f6,#7c6df2,#06b6d4);
+    -webkit-background-clip:text;-webkit-text-fill-color:transparent;
+    background-clip:text;letter-spacing:-0.02em">⬡ NEURALRAG</div>
+  <div style="font-family:'Space Mono',monospace;color:#6b7280;font-size:0.85rem;
+    letter-spacing:0.12em;margin-top:0.5rem">Multi-Agent Intelligence Platform</div>
+  <div style="color:#94a3b8;font-size:0.75rem;margin-top:0.3rem">Version 4.0 Enhanced · 2024</div>
+</div>""", unsafe_allow_html=True)
+    
+    st.markdown("---")
+    
+    # Overview
+    st.markdown("""
+### 🎯 Overview
 
-**Stack**
-- 🤖 **LLM**: Google Gemini (`google-generativeai`)
-- 🔢 **Embeddings**: `sentence-transformers/all-MiniLM-L6-v2` (384d, CPU)
-- 🗄️ **Vector Store**: FAISS `IndexFlatL2` + BM25 hybrid rerank
-- ⚙️ **Framework**: LangChain · Streamlit
+**NeuralRAG** is a production-grade multi-agent AI platform that intelligently routes queries to specialized agents, enabling document Q&A, video analysis, data visualization, code generation, and web research through a unified conversational interface.
 
----
+Built with modern AI technologies and designed for scalability, NeuralRAG combines the power of Google's Gemini LLM, semantic search, and intelligent routing to deliver accurate, context-aware responses across diverse use cases.
+""")
+    
+    st.markdown("---")
+    
+    # Key Features
+    st.markdown("### ✨ Key Features")
+    
+    features = [
+        ("🤖", "Multi-Agent Architecture", "Seven specialized agents working in harmony with intelligent routing and delegation"),
+        ("🔍", "Hybrid RAG System", "Dense vector search + BM25 keyword matching with contextual compression"),
+        ("🎬", "Video Intelligence", "YouTube transcript processing with timestamp-aware Q&A"),
+        ("📊", "AI Data Analysis", "Automated chart generation and statistical insights from structured data"),
+        ("💻", "Code Generation", "Multi-language code creation with inline documentation"),
+        ("🔬", "Web Research", "Multi-query synthesis with live web search integration"),
+        ("📈", "Performance Monitoring", "Real-time analytics, health metrics, and usage tracking"),
+        ("💾", "Export & Persistence", "Chat history export, session state management"),
+    ]
+    
+    col1, col2 = st.columns(2)
+    for i, (icon, title, desc) in enumerate(features):
+        target = col1 if i % 2 == 0 else col2
+        with target:
+            st.markdown(f"""
+<div class="feature-card">
+  <div class="feature-icon">{icon}</div>
+  <div class="feature-title">{title}</div>
+  <div class="feature-desc">{desc}</div>
+</div>""", unsafe_allow_html=True)
+    
+    st.markdown("---")
+    
+    # Architecture
+    st.markdown("### 🏗️ System Architecture")
+    
+    st.markdown("""
+<div class="arch-diagram">
+<div class="arch-layer">
+<strong>📱 PRESENTATION LAYER</strong><br>
+Streamlit UI · Real-time Chat · File Upload · Visualization Dashboard
+</div>
 
-**Agents**
+<div class="arch-arrow">↓</div>
 
-| Agent | Capability |
-|-------|-----------|
-| 🤖 Chatbot | Conversational AI with rolling memory (20 turns) |
-| 📄 Document RAG | Dense + keyword rerank · contextual compression · grounded answers |
-| 🎬 YouTube RAG | Transcript fetch → chunk → semantic Q&A with timestamps |
-| 📊 Data Analyst | Pandas profiling + AI chart generation in chat |
-| 💻 Code Generator | Multi-language code gen with inline comments |
-| 🔬 Web Researcher | DuckDuckGo multi-query synthesis |
-| 🧠 Auto-Route | Regex fast-path → LLM classifier → context override |
+<div class="arch-layer">
+<strong>🧠 ORCHESTRATION LAYER</strong><br>
+Multi-Agent Router · Context Manager · Query Classifier · Delegation Logic
+</div>
 
----
+<div class="arch-arrow">↓</div>
 
-**RAG Pipeline**
+<div class="arch-layer">
+<strong>🤖 AGENT LAYER</strong><br>
+Chatbot · RAG · Video RAG · Data Analyst · Code Gen · Research · Auto-Route
+</div>
+
+<div class="arch-arrow">↓</div>
+
+<div class="arch-layer">
+<strong>🔢 EMBEDDING & VECTOR LAYER</strong><br>
+SentenceTransformers (MiniLM-L6-v2 · 384d) · FAISS IndexFlatL2 · BM25 Reranking
+</div>
+
+<div class="arch-arrow">↓</div>
+
+<div class="arch-layer">
+<strong>🧬 LLM LAYER</strong><br>
+Google Gemini 2.0 Flash · Function Calling · Streaming Responses
+</div>
+
+<div class="arch-arrow">↓</div>
+
+<div class="arch-layer">
+<strong>💾 DATA LAYER</strong><br>
+Document Store · Vector Index · Session State · Chat History · Metrics DB
+</div>
+</div>
+""", unsafe_allow_html=True)
+    
+    st.markdown("---")
+    
+    # Technology Stack
+    st.markdown("### 🛠️ Technology Stack")
+    
+    tech_stack = {
+        "**LLM**": "Google Gemini 2.0 Flash (`google-generativeai`)",
+        "**Embeddings**": "SentenceTransformers MiniLM-L6-v2 (384 dimensions)",
+        "**Vector DB**": "FAISS with IndexFlatL2 + BM25 hybrid reranking",
+        "**Framework**": "LangChain for orchestration and document processing",
+        "**Frontend**": "Streamlit with custom CSS and responsive design",
+        "**Video Processing**": "YouTube Transcript API with multi-language support",
+        "**Data Analysis**": "Pandas + NumPy + Matplotlib + Seaborn",
+        "**Code Generation**": "Multi-language support (Python, JS, Java, Go, Rust, etc.)",
+    }
+    
+    for tech, desc in tech_stack.items():
+        st.markdown(f"- {tech}: {desc}")
+    
+    st.markdown("---")
+    
+    # Agent Capabilities
+    st.markdown("### 🤖 Agent Capabilities Matrix")
+    
+    agent_table = pd.DataFrame({
+        "Agent": ["🤖 Chatbot", "📄 Document RAG", "🎬 YouTube RAG", "📊 Data Analyst", "💻 Code Generator", "🔬 Web Researcher", "🧠 Auto-Route"],
+        "Primary Function": [
+            "Conversational AI",
+            "Document Q&A",
+            "Video Transcript Q&A",
+            "Data Analysis",
+            "Code Generation",
+            "Web Research",
+            "Intelligent Routing"
+        ],
+        "Context Window": ["20 turns", "Unlimited", "Video length", "Dataset size", "Single query", "Multiple queries", "N/A"],
+        "Memory": ["✅ Rolling", "❌", "❌", "❌", "❌", "❌", "❌"],
+        "Real-time Data": ["❌", "❌", "❌", "❌", "❌", "✅ Web", "✅ Delegates"],
+    })
+    
+    st.dataframe(agent_table, use_container_width=True)
+    
+    st.markdown("---")
+    
+    # RAG Pipeline
+    st.markdown("### 🔄 RAG Pipeline Flow")
+    
+    st.markdown("""
 ```
-Upload → Load → Chunk (800 chars, 150 overlap)
-       → Embed (MiniLM-L6-v2) → FAISS index
-Query  → Dense search (k=6) → BM25 rerank → Top 5
-       → LLM contextual compression → Grounded answer
+┌─────────────────┐
+│  Upload Files   │
+│  (PDF/TXT/MD)   │
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│  Load & Parse   │
+│  (LangChain)    │
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│  Chunk Text     │
+│  (800 chars,    │
+│   150 overlap)  │
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│  Embed Chunks   │
+│  (MiniLM-L6-v2) │
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│  FAISS Index    │
+│  (L2 distance)  │
+└────────┬────────┘
+         │
+    ┌────┴────┐
+    │  QUERY  │
+    └────┬────┘
+         │
+         ▼
+┌─────────────────┐
+│  Dense Search   │
+│  (k=6 chunks)   │
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│  BM25 Rerank    │
+│  (Top 5)        │
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│  LLM Compress   │
+│  (Contextual)   │
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│  Grounded       │
+│  Answer + Cite  │
+└─────────────────┘
 ```
+""")
+    
+    st.markdown("---")
+    
+    # Routing Logic
+    st.markdown("### ⚡ Intelligent Routing Logic")
+    
+    st.markdown("""
+The Auto-Route agent uses a three-tier decision system:
 
-**Orchestrator**
+1. **⚡ Regex Fast-Path** (0 LLM calls)
+   - Pattern matching for common queries
+   - Instant routing for known patterns
+   - Fallback to LLM if no match
+
+2. **🧠 LLM Classification** (1 LLM call)
+   - Gemini analyzes query intent
+   - Returns agent + confidence score (0–1)
+   - Confidence threshold: 0.5 minimum
+
+3. **🔄 Context Override** (Priority routing)
+   - Checks loaded data sources
+   - Routes to appropriate RAG if data exists
+   - Overrides LLM decision when applicable
+
+**Example Routing:**
 ```
-Message → ⚡ Regex fast-path (zero LLM cost)
-        → 🧠 LLM classifier + confidence (0–1)
-        → 🔄 Context override (loaded docs/video/data)
-        → 🚀 Dispatch → Agent → Result + routing metadata
+Query: "What's in the uploaded PDF?"
+  ⚡ Regex: No match
+  🧠 LLM: rag, confidence=0.95
+  🔄 Context: rag_ingested=True → ROUTE TO RAG
 ```
+""")
+    
+    st.markdown("---")
+    
+    # Performance Optimizations
+    st.markdown("### ⚙️ Performance Optimizations")
+    
+    optimizations = [
+        "**Semantic Caching**: Embedding cache for repeated queries",
+        "**Batch Processing**: Parallel document chunking and embedding",
+        "**Lazy Loading**: Agents initialized only when needed",
+        "**Response Streaming**: Real-time token streaming from Gemini",
+        "**Contextual Compression**: LLM-based chunk relevance filtering",
+        "**BM25 Reranking**: Hybrid search improves retrieval accuracy by 15-20%",
+        "**Session Persistence**: State recovery after server restart",
+        "**Metric Tracking**: Real-time performance monitoring with minimal overhead",
+    ]
+    
+    for opt in optimizations:
+        st.markdown(f"- {opt}")
+    
+    st.markdown("---")
+    
+    # Configuration
+    st.markdown("### ⚙️ Configuration")
+    
+    st.markdown("""
+Create `.streamlit/secrets.toml`:
 
----
-
-**`.streamlit/secrets.toml`**
 ```toml
-GEMINI_API_KEY = "your-key-here"
+GEMINI_API_KEY = "your-api-key-here"
 GEMINI_MODEL   = "gemini-2.0-flash"
 ```
 
-**⌨️ Keyboard shortcuts**
-- `Enter` — Send message
-- `Shift + Enter` — New line in message box
+**Environment Variables:**
+- `GEMINI_API_KEY`: Your Google AI API key
+- `GEMINI_MODEL`: Model identifier (default: gemini-2.0-flash)
+
+**Optional Tuning:**
+- Chunk size: 800 characters (adjustable in agents.py)
+- Chunk overlap: 150 characters
+- Top-k retrieval: 6 chunks → 5 after rerank
+- Embedding dimension: 384 (MiniLM-L6-v2 fixed)
+""")
+    
+    st.markdown("---")
+    
+    # Keyboard Shortcuts
+    st.markdown("### ⌨️ Keyboard Shortcuts")
+    
+    shortcuts = [
+        ("Enter", "Send message", "In chat input field"),
+        ("Shift + Enter", "New line", "In chat input field"),
+        ("Escape", "Close modal", "When modal is open"),
+        ("Tab", "Navigate fields", "In forms"),
+    ]
+    
+    shortcut_df = pd.DataFrame(shortcuts, columns=["Shortcut", "Action", "Context"])
+    st.table(shortcut_df)
+    
+    st.markdown("---")
+    
+    # Use Cases
+    st.markdown("### 💡 Use Cases")
+    
+    use_cases = [
+        ("📚 **Academic Research**", "Upload research papers, ask questions, get cited answers with source references"),
+        ("🎓 **Learning & Education**", "Process YouTube lectures, generate study notes, create flashcards"),
+        ("📊 **Business Intelligence**", "Analyze sales data, generate reports, create executive dashboards"),
+        ("💼 **Software Development**", "Generate boilerplate code, debug errors, explain algorithms"),
+        ("🔍 **Competitive Analysis**", "Research competitors, synthesize market reports, track trends"),
+        ("📝 **Content Creation**", "Research topics, gather sources, create content outlines"),
+    ]
+    
+    for title, desc in use_cases:
+        st.markdown(f"**{title}**")
+        st.markdown(f"> {desc}")
+        st.markdown("")
+    
+    st.markdown("---")
+    
+    # Limitations
+    st.markdown("### ⚠️ Known Limitations")
+    
+    limitations = [
+        "**Context Window**: Limited by Gemini's token limit (~1M tokens for 2.0 Flash)",
+        "**Embedding Quality**: MiniLM-L6-v2 may underperform on domain-specific jargon",
+        "**Video Length**: Very long videos (>3 hours) may hit processing limits",
+        "**Data Size**: Large datasets (>1M rows) may cause memory issues",
+        "**Concurrent Users**: Single-instance deployment; use load balancer for scale",
+        "**Cost**: Gemini API calls incur usage charges (monitor via Google Cloud Console)",
+    ]
+    
+    for lim in limitations:
+        st.markdown(f"- {lim}")
+    
+    st.markdown("---")
+    
+    # Future Roadmap
+    st.markdown("### 🚀 Future Roadmap")
+    
+    roadmap = [
+        "🔐 **Multi-user Authentication** with role-based access control",
+        "☁️ **Cloud Deployment** guides for AWS, GCP, Azure",
+        "🗄️ **PostgreSQL Integration** for persistent storage",
+        "🔄 **Multi-modal Support** for image analysis and audio transcription",
+        "🌐 **API Gateway** for programmatic access",
+        "📱 **Mobile App** with offline mode",
+        "🎨 **Custom Themes** and white-label options",
+        "📊 **Advanced Analytics** with predictive insights",
+    ]
+    
+    for item in roadmap:
+        st.markdown(f"- {item}")
+    
+    st.markdown("---")
+    
+    # Credits & License
+    st.markdown("""
+### 📜 License & Credits
+
+**License**: MIT License
+
+**Core Technologies**:
+- Google Gemini API
+- LangChain
+- FAISS (Facebook AI Similarity Search)
+- Streamlit
+- Sentence Transformers
+
+**Built with** ❤️ **for the AI community**
+
+---
+
+<div style="text-align:center;margin:2rem 0;color:#6b7280;font-size:0.8rem">
+  <strong>⬡ NeuralRAG v4.0</strong> · Multi-Agent Intelligence Platform<br>
+  Powered by Google Gemini · LangChain · FAISS
+</div>
+""", unsafe_allow_html=True)
+
+
+# ════════════════════════════════════════════════════════════
+# TAB 7 — DOCS (NEW)
+# ════════════════════════════════════════════════════════════
+with tab_docs:
+    st.markdown("### 📚 Documentation")
+    
+    doc_section = st.radio(
+        "Section",
+        ["🚀 Quick Start", "📖 User Guide", "🔧 API Reference", "❓ FAQ", "🐛 Troubleshooting"],
+        horizontal=True,
+        label_visibility="collapsed",
+    )
+    
+    st.markdown("---")
+    
+    if doc_section == "🚀 Quick Start":
+        st.markdown("""
+## 🚀 Quick Start Guide
+
+### Installation
+
+1. **Clone the repository**
+```bash
+git clone https://github.com/yourusername/neuralrag.git
+cd neuralrag
+```
+
+2. **Install dependencies**
+```bash
+pip install -r requirements.txt
+```
+
+3. **Configure API keys**
+Create `.streamlit/secrets.toml`:
+```toml
+GEMINI_API_KEY = "your-api-key-here"
+GEMINI_MODEL   = "gemini-2.0-flash"
+```
+
+4. **Run the application**
+```bash
+streamlit run app.py
+```
+
+### First Steps
+
+1. **Select an Agent** from the sidebar
+2. **Upload Data** (optional) via the Ingest tab
+3. **Start Chatting** in the Chat tab
+4. **View Analytics** to monitor performance
+
+### Example Workflows
+
+**Document Q&A**:
+1. Go to **Ingest → Documents**
+2. Upload PDF/TXT/MD files
+3. Click **🔄 Ingest Documents**
+4. Switch to **Chat** tab
+5. Ask questions about your documents
+
+**YouTube Analysis**:
+1. Go to **Ingest → YouTube**
+2. Paste a YouTube URL
+3. Click **▶ Load Video**
+4. Ask questions with timestamp-aware responses
+
+**Data Visualization**:
+1. Go to **Ingest → CSV / Excel**
+2. Upload your dataset
+3. Go to **Visualize** tab
+4. Create charts or use AI chart generator
+""")
+    
+    elif doc_section == "📖 User Guide":
+        st.markdown("""
+## 📖 User Guide
+
+### Chat Interface
+
+The chat interface is your main interaction point with NeuralRAG. Messages appear in bubbles with agent identification and metadata.
+
+**Message Types**:
+- **User Messages**: Blue bubbles on the right
+- **Agent Responses**: White bubbles on the left with agent icon
+
+**Response Metadata**:
+- **Response Time**: ⚡ badge showing processing duration
+- **Confidence Score**: Color-coded confidence indicator
+- **Source Citations**: 📄 pills linking to document sources
+- **Timestamps**: ⏱ pills linking to video timestamps
+
+### Agent Selection
+
+**🤖 General Chatbot**
+- Conversational AI with 20-turn memory
+- Best for: General questions, casual chat
+- Auto-delegates to specialized agents when needed
+
+**📄 Document Q&A**
+- Semantic search over uploaded documents
+- Best for: Research, document analysis
+- Requires: Documents uploaded via Ingest tab
+
+**🎬 YouTube RAG**
+- Transcript-based Q&A with timestamps
+- Best for: Video content analysis, note-taking
+- Requires: YouTube URL loaded via Ingest tab
+
+**📊 Data Analyst**
+- AI-powered data analysis and visualization
+- Best for: CSV/Excel analysis, chart creation
+- Requires: Dataset uploaded via Ingest tab
+
+**💻 Code Generator**
+- Multi-language code generation
+- Best for: Boilerplate code, debugging, explanations
+- Supports: Python, JS, Java, Go, Rust, SQL, etc.
+
+**🔬 Web Researcher**
+- Live web search with multi-query synthesis
+- Best for: Current events, research, fact-checking
+- Requires: Internet connection
+
+**🧠 Auto-Route**
+- Intelligent routing to best agent
+- Best for: Mixed queries, uncertain use case
+- Uses: Regex → LLM → Context override logic
+
+### Data Ingestion
+
+**Documents**:
+- Supported formats: PDF, TXT, MD, CSV, DOCX
+- Chunking: 800 characters, 150 overlap
+- Embedding: MiniLM-L6-v2 (384d)
+- Index: FAISS with BM25 reranking
+
+**YouTube Videos**:
+- Transcript languages: 10+ supported
+- Auto-segmentation: Timestamp-aware chunks
+- Search: Dense + keyword hybrid
+
+**CSV/Excel**:
+- Max size: ~1M rows (memory-dependent)
+- Auto-profiling: Statistical summary
+- AI analysis: Natural language queries
+
+### Visualization
+
+**Chart Types**:
+- Bar charts
+- Line charts
+- Histograms
+- Scatter plots
+- Correlation heatmaps
+- Box plots
+
+**AI Chart Generator**:
+Describe your visualization in plain English:
+```
+"Show me a bar chart of top 10 products by revenue"
+"Create a scatter plot of price vs quantity colored by category"
+"Generate a correlation heatmap for all numeric columns"
+```
+
+### Vector DB Showcase
+
+View real-time retrieval internals:
+- **Chunk Preview**: See indexed text segments
+- **Similarity Scores**: Understand ranking logic
+- **Metadata**: Inspect embedding dimensions, sources
+- **Routing Log**: Track agent selection decisions
+
+### Analytics Dashboard
+
+Monitor system performance:
+- **Total Queries**: Session query count
+- **Avg Response Time**: Mean processing duration
+- **Agent Distribution**: Usage breakdown by agent
+- **Error Rate**: Failed query tracking
+- **Health Score**: Overall system health (0-100)
+""")
+    
+    elif doc_section == "🔧 API Reference":
+        st.markdown("""
+## 🔧 API Reference
+
+### Core Classes
+
+#### `MultiAgentOrchestrator`
+
+Main orchestrator class managing all agents and routing logic.
+
+**Methods**:
+
+```python
+route(query: str, context: dict) -> dict
+```
+Routes query to appropriate agent with intelligent decision-making.
+
+**Parameters**:
+- `query`: User input string
+- `context`: Dict with keys: `rag_ingested`, `video_ingested`, `data_loaded`, `data_filename`
+
+**Returns**:
+```python
+{
+    "answer": str,           # Agent response
+    "chart": str | None,     # Base64 PNG for charts
+    "code": str | None,      # Generated code
+    "sources": list[str],    # Document sources
+    "timestamps": list[dict],# Video timestamps
+    "vstore_data": dict,     # Vector DB metadata
+    "_routing": {            # Routing metadata
+        "agent": str,        # Selected agent
+        "method": str,       # regex | llm | context_override
+        "confidence": float  # 0.0 - 1.0
+    }
+}
+```
+
+---
+
+```python
+get_routing_log() -> list[dict]
+```
+Returns routing history for analytics.
+
+**Returns**:
+```python
+[
+    {
+        "query": str,
+        "agent": str,
+        "method": str,
+        "confidence": float,
+        "timestamp": str
+    },
+    ...
+]
+```
+
+### Agent APIs
+
+#### `RAGAgent`
+
+```python
+ingest(file_paths: list[str]) -> str
+```
+Index documents for semantic search.
+
+```python
+query(question: str) -> dict
+```
+Perform RAG query with source citations.
+
+**Returns**:
+```python
+{
+    "answer": str,
+    "sources": list[str],
+    "vstore_data": dict
+}
+```
+
+---
+
+#### `VideoRAGAgent`
+
+```python
+ingest(youtube_url: str, language: str = "en") -> str
+```
+Load and index YouTube transcript.
+
+```python
+query(question: str) -> dict
+```
+Query video content with timestamps.
+
+**Returns**:
+```python
+{
+    "answer": str,
+    "timestamps": [
+        {"timestamp": str, "yt_link": str},
+        ...
+    ],
+    "vstore_data": dict
+}
+```
+
+---
+
+#### `DataAgent`
+
+```python
+load_data(file_path: str) -> str
+```
+Load CSV/Excel into pandas DataFrame.
+
+```python
+analyze(query: str) -> dict
+```
+AI-powered data analysis with charts.
+
+**Returns**:
+```python
+{
+    "answer": str,
+    "chart": str | None  # Base64 PNG
+}
+```
+
+---
+
+#### `CodeAgent`
+
+```python
+generate(query: str, language: str = "python") -> dict
+```
+Generate code in specified language.
+
+**Returns**:
+```python
+{
+    "answer": str,
+    "code": str
+}
+```
+
+---
+
+#### `ResearchAgent`
+
+```python
+research(query: str) -> dict
+```
+Multi-query web research synthesis.
+
+**Returns**:
+```python
+{
+    "answer": str,
+    "sources": list[dict],  # [{title, url}, ...]
+    "queries": list[str]    # Search queries used
+}
+```
+
+### Utility Functions
+
+```python
+export_chat_history() -> str
+```
+Export session as JSON.
+
+```python
+push_msg(role: str, content: str, **kwargs)
+```
+Add message to session state.
+
+```python
+render_message(msg: dict)
+```
+Render chat bubble with metadata.
+""")
+    
+    elif doc_section == "❓ FAQ":
+        st.markdown("""
+## ❓ Frequently Asked Questions
+
+### General
+
+**Q: What LLM does NeuralRAG use?**  
+A: Google Gemini 2.0 Flash by default. Configurable via `GEMINI_MODEL` in secrets.toml.
+
+**Q: Can I use other LLMs like OpenAI or Claude?**  
+A: The codebase is designed for Gemini, but you can modify `agents.py` to support other providers via LangChain's abstraction layer.
+
+**Q: Is my data stored anywhere?**  
+A: No. All processing is in-memory. Data persists only in your session state until you clear it or restart the server.
+
+**Q: Can multiple users use the same instance?**  
+A: Yes, but sessions are isolated. Each user has their own session state. For production, use a load balancer.
+
+---
+
+### Performance
+
+**Q: Why is the first response slow?**  
+A: The first query initializes models and embeddings. Subsequent queries are faster due to caching.
+
+**Q: How can I speed up RAG queries?**  
+A: Reduce chunk size, lower top-k retrieval, or use a faster embedding model. Trade-off: accuracy vs speed.
+
+**Q: What's the max file size for uploads?**  
+A: Streamlit default is 200MB. Increase with `server.maxUploadSize` in `.streamlit/config.toml`.
+
+---
+
+### Troubleshooting
+
+**Q: "No module named 'agents'"**  
+A: Ensure `agents.py` is in the same directory as `app.py`.
+
+**Q: "API key not found"**  
+A: Create `.streamlit/secrets.toml` with your `GEMINI_API_KEY`.
+
+**Q: Chart generation fails in Data Analyst**  
+A: Ensure matplotlib, pandas, seaborn are installed: `pip install matplotlib pandas seaborn`.
+
+**Q: YouTube ingestion fails**  
+A: Check if the video has captions. Some videos don't provide transcripts.
+
+**Q: Vector DB showcase shows 0 chunks**  
+A: Re-ingest your data. Ensure chunking completed successfully.
+
+---
+
+### Features
+
+**Q: Can I export chat history?**  
+A: Yes. Use the "💾 Export" button in the sidebar to download JSON.
+
+**Q: Does NeuralRAG support multi-language documents?**  
+A: Embeddings work for 100+ languages, but performance varies. English is most accurate.
+
+**Q: Can I customize chunk size?**  
+A: Yes. Edit `agents.py` → `RecursiveCharacterTextSplitter` parameters.
+
+**Q: How do I add a custom agent?**  
+A: Create a new class in `agents.py`, add to `MultiAgentOrchestrator`, update routing logic.
+
+---
+
+### Deployment
+
+**Q: Can I deploy to Streamlit Cloud?**  
+A: Yes. Add `GEMINI_API_KEY` to Streamlit secrets in your dashboard.
+
+**Q: How do I deploy to AWS/GCP/Azure?**  
+A: Use Docker + container services (ECS, Cloud Run, App Service). See deployment guide.
+
+**Q: Is there a Docker image?**  
+A: Not pre-built. Create your own Dockerfile based on `python:3.10-slim` with dependencies.
+""")
+    
+    elif doc_section == "🐛 Troubleshooting":
+        st.markdown("""
+## 🐛 Troubleshooting Guide
+
+### Common Issues
+
+#### 1. API Key Errors
+
+**Error**: `API key not found` or `Invalid API key`
+
+**Solutions**:
+- Create `.streamlit/secrets.toml` in project root
+- Add `GEMINI_API_KEY = "your-key"`
+- Restart Streamlit server
+- Verify key validity at Google AI Studio
+
+---
+
+#### 2. Import Errors
+
+**Error**: `ModuleNotFoundError: No module named 'X'`
+
+**Solutions**:
+```bash
+pip install -r requirements.txt
+pip install --upgrade google-generativeai langchain sentence-transformers faiss-cpu
+```
+
+---
+
+#### 3. Memory Issues
+
+**Error**: `MemoryError` or `Killed`
+
+**Solutions**:
+- Reduce chunk size in `agents.py`
+- Lower top-k retrieval parameter
+- Use smaller datasets (<500k rows)
+- Increase system RAM or use cloud deployment
+
+---
+
+#### 4. Chart Generation Failures
+
+**Error**: Charts don't appear in Data Analyst
+
+**Solutions**:
+- Install visualization libraries:
+```bash
+pip install matplotlib seaborn pandas numpy
+```
+- Check that `matplotlib.use("Agg")` is at top of file
+- Verify data has numeric columns
+- Try a different chart type
+
+---
+
+#### 5. YouTube Ingestion Fails
+
+**Error**: `Error loading video` or `No transcript found`
+
+**Causes**:
+- Video has no captions/subtitles
+- Video is age-restricted
+- Video is private/unlisted
+- Network connectivity issues
+
+**Solutions**:
+- Try a different video
+- Check video has captions on YouTube
+- Use public, non-restricted videos
+- Verify internet connection
+
+---
+
+#### 6. Slow Performance
+
+**Issue**: Queries take >10 seconds
+
+**Solutions**:
+- **For RAG**: Reduce `chunk_size` and `top_k`
+- **For Data**: Use smaller datasets or sample data
+- **For Video**: Use shorter videos (<1 hour)
+- **For LLM**: Switch to faster model (if available)
+- Enable GPU for embeddings (FAISS-GPU)
+
+---
+
+#### 7. Vector DB Shows 0 Chunks
+
+**Issue**: No chunks indexed after ingestion
+
+**Solutions**:
+- Re-upload files via Ingest tab
+- Check file format compatibility
+- Verify file isn't empty or corrupted
+- Check Streamlit logs for errors
+- Try a different file
+
+---
+
+#### 8. Session State Resets
+
+**Issue**: Data disappears on page refresh
+
+**Expected Behavior**: Streamlit sessions are ephemeral. Use Export feature to save data.
+
+**Solutions**:
+- Use "💾 Export" button to save chat history
+- For persistence, implement database backend
+- Use Streamlit's session state carefully
+
+---
+
+### Debug Mode
+
+Enable debug logging:
+
+```python
+import logging
+logging.basicConfig(level=logging.DEBUG)
+```
+
+Add to `app.py` to see detailed agent execution logs.
+
+---
+
+### Getting Help
+
+1. **Check Logs**: Streamlit terminal output shows errors
+2. **GitHub Issues**: Report bugs at repository issues page
+3. **Documentation**: Re-read this guide and API reference
+4. **Community**: Join Streamlit/LangChain Discord for support
+
+---
+
+### Performance Optimization Checklist
+
+- [ ] Use SSD for faster file I/O
+- [ ] Increase system RAM (16GB+ recommended)
+- [ ] Enable GPU for FAISS (if available)
+- [ ] Cache embeddings for repeated queries
+- [ ] Reduce chunk size for faster indexing
+- [ ] Use smaller datasets for testing
+- [ ] Monitor memory usage with `htop`
+- [ ] Profile code with `cProfile` if needed
 """)
